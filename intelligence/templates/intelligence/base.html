@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>النظام الأمني لجمع المعلومات</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0b1220;
+            --panel: rgba(19, 28, 45, 0.75);
+            --border: #1f2b44;
+            --text: #d6e3ff;
+            --muted: #8aa2c6;
+            --primary: #22d3ee;
+            --accent: #10b981;
+        }
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        .glass-panel {
+            background: var(--panel);
+            backdrop-filter: blur(14px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+        }
+        .status-badge-U { background-color: #22c55e; color: #031520; }
+        .status-badge-R { background-color: #eab308; color: #031520; }
+        .status-badge-C { background-color: #f97316; color: #031520; }
+        .status-badge-S { background-color: #ef4444; color: #ffffff; }
+        .status-badge-TS { background-color: #0b0b0b; color: #ef4444; border: 1px solid #ef4444; }
+        .brand-bar { height: 2px; background: linear-gradient(90deg, transparent, var(--primary), var(--accent), transparent); }
+        
+        /* Sidebar Styling */
+        #main-sidebar {
+            position: fixed;
+            right: 0;
+            top: 0;
+            height: 100vh;
+            width: 280px; /* Slightly wider */
+            z-index: 50;
+            border-left: 1px solid var(--border);
+            border-radius: 0;
+        }
+        
+        /* Content Area */
+        #main-content {
+            margin-right: 280px; /* Match sidebar width */
+            padding: 2rem;
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR NAVIGATION ONLY - NO TOP MENU -->
+    <aside id="main-sidebar" class="glass-panel flex flex-col p-6">
+        <!-- Brand / Title -->
+        <div class="mb-10 text-center">
+            <h1 class="text-2xl font-bold mb-1" style="color: var(--primary)">نظام الاستخبارات</h1>
+            <p class="text-[10px] tracking-widest uppercase opacity-70">Integrated System</p>
+            <div class="brand-bar mt-4 mx-auto w-1/2"></div>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav class="flex-1 flex flex-col gap-3 overflow-y-auto">
+            <a href="{% url 'dashboard' %}" class="flex items-center gap-4 px-4 py-3 rounded-lg transition hover:bg-white/5 group border border-transparent hover:border-white/10" style="color: var(--text);">
+                <span class="text-xl opacity-70 group-hover:opacity-100 group-hover:text-cyan-400">🏠</span>
+                <span class="font-bold text-sm">الرئيسية</span>
+            </a>
+
+            <a href="{% url 'search' %}" class="flex items-center gap-4 px-4 py-3 rounded-lg transition hover:bg-white/5 group border border-transparent hover:border-white/10" style="color: var(--text);">
+                <span class="text-xl opacity-70 group-hover:opacity-100 group-hover:text-cyan-400">🔍</span>
+                <span class="font-bold text-sm">بحث متقدم</span>
+            </a>
+            
+            <a href="{% url 'graph_view' %}" class="flex items-center gap-4 px-4 py-3 rounded-lg transition hover:bg-white/5 group border border-transparent hover:border-white/10">
+                <span class="text-xl opacity-70 group-hover:opacity-100 group-hover:text-cyan-400">🕸️</span>
+                <span class="font-bold text-sm">الخريطة التفاعلية</span>
+            </a>
+
+            {% if request.user.is_staff %}
+            <div class="my-4 border-t border-white/5"></div>
+            
+            <a href="{% url 'source_manager' %}" class="flex items-center gap-4 px-4 py-3 rounded-lg transition hover:bg-white/5 group border border-transparent hover:border-white/10">
+                <span class="text-xl opacity-70 group-hover:opacity-100 group-hover:text-amber-400">📡</span>
+                <span class="font-bold text-sm">إدارة المصادر</span>
+            </a>
+
+            <a href="{% url 'user_list' %}" class="flex items-center gap-4 px-4 py-3 rounded-lg transition hover:bg-white/5 group border border-transparent hover:border-white/10">
+                <span class="text-xl opacity-70 group-hover:opacity-100 group-hover:text-emerald-400">👥</span>
+                <span class="font-bold text-sm">المستخدمين</span>
+            </a>
+            
+            <a href="{% url 'audit_log' %}" class="flex items-center gap-4 px-4 py-3 rounded-lg transition hover:bg-white/5 group border border-transparent hover:border-white/10">
+                <span class="text-xl opacity-70 group-hover:opacity-100 group-hover:text-red-400">🛡️</span>
+                <span class="font-bold text-sm">سجل التدقيق</span>
+            </a>
+            {% endif %}
+        </nav>
+
+        <!-- System Status Summary -->
+        <div class="mt-6 pt-6 border-t border-white/10">
+            <h4 class="text-[10px] mb-4 font-bold uppercase tracking-wider opacity-50">System Status</h4>
+            <div class="space-y-3 text-xs">
+                <div class="flex justify-between items-center">
+                    <span class="opacity-70">Reports (24h)</span>
+                    <span class="font-mono font-bold bg-white/5 px-2 py-0.5 rounded">{{ recent_reports_count|default:0 }}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="opacity-70">Ingestion</span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full {% if ingestion_online %}bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]{% else %}bg-red-500{% endif %}"></span>
+                        <span class="font-bold {% if ingestion_online %}text-emerald-500{% else %}text-red-500{% endif %}">{% if ingestion_online %}ON{% else %}OFF{% endif %}</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="opacity-70">Analysis</span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full {% if analysis_online %}bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]{% else %}bg-red-500{% endif %}"></span>
+                        <span class="font-bold {% if analysis_online %}text-emerald-500{% else %}text-red-500{% endif %}">{% if analysis_online %}ON{% else %}OFF{% endif %}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Profile -->
+        <div class="mt-6 pt-6 border-t border-white/10">
+            {% if request.user.is_authenticated %}
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-900 to-blue-900 border border-cyan-500/30 flex items-center justify-center text-xs font-bold text-cyan-200">
+                        {{ request.user.username|slice:":2"|upper }}
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-xs font-bold leading-tight">{{ request.user.first_name|default:request.user.username }}</span>
+                        <span class="text-[10px] opacity-50">Online</span>
+                    </div>
+                </div>
+                <form action="{% url 'logout' %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="text-red-400 hover:text-red-300 transition p-2 rounded hover:bg-red-500/10" title="تسجيل الخروج">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="main-content">
+        <!-- Flash Messages -->
+        {% if messages %}
+        <div class="mb-8 space-y-2 max-w-4xl mx-auto">
+            {% for message in messages %}
+            <div class="glass-panel p-4 rounded-lg border-l-4 flex items-center justify-between {% if message.tags == 'success' %}border-l-green-500 bg-green-900/20{% elif message.tags == 'error' %}border-l-red-500 bg-red-900/20{% else %}border-l-blue-500 bg-blue-900/20{% endif %}">
+                <span class="font-bold text-sm">{{ message }}</span>
+                <button onclick="this.parentElement.remove()" class="text-xs opacity-50 hover:opacity-100">✕</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% block content %}
+        {% endblock %}
+    </main>
+
+</body>
+</html>

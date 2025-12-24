@@ -1,0 +1,168 @@
+{% extends 'intelligence/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold mb-2">إدارة المصادر المستهدفة</h1>
+            <p class="text-slate-400">تحديد المواقع والصحف التي يتم مراقبتها وجلب المعلومات منها.</p>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="document.getElementById('addSourceModal').classList.remove('hidden')" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition">
+                <span>+</span> إضافة مصدر جديد
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="glass-panel p-4 flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center text-2xl">📡</div>
+            <div>
+                <div class="text-2xl font-bold font-mono">{{ sources.count }}</div>
+                <div class="text-xs text-slate-400">إجمالي المصادر</div>
+            </div>
+        </div>
+        <div class="glass-panel p-4 flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center text-2xl">⚡</div>
+            <div>
+                <div class="text-2xl font-bold font-mono">{{ sources|length }}</div> <!-- Just an example count -->
+                <div class="text-xs text-slate-400">مصادر نشطة</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sources Table -->
+    <div class="glass-panel overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right">
+                <thead class="bg-white/5 text-slate-400 text-xs uppercase">
+                    <tr>
+                        <th class="p-4">المصدر</th>
+                        <th class="p-4">التصنيف / الدولة</th>
+                        <th class="p-4">النوع</th>
+                        <th class="p-4">الحالة</th>
+                        <th class="p-4">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/10">
+                    {% for source in sources %}
+                    <tr class="hover:bg-white/5 transition">
+                        <td class="p-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded bg-slate-800 flex items-center justify-center font-bold text-xs border border-white/10">
+                                    {{ source.name|slice:":2" }}
+                                </div>
+                                <div>
+                                    <div class="font-bold">{{ source.name }}</div>
+                                    <a href="{{ source.url }}" target="_blank" class="text-xs text-cyan-400 hover:underline dir-ltr block text-right">{{ source.url|truncatechars:30 }}</a>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="p-4">
+                            {% if source.category %}
+                            <span class="bg-slate-700 text-slate-200 px-2 py-1 rounded text-xs border border-white/10">
+                                {{ source.category }}
+                            </span>
+                            {% else %}
+                            <span class="text-slate-600 text-xs">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="p-4 text-sm text-slate-400">
+                            {{ source.get_source_type_display }}
+                        </td>
+                        <td class="p-4">
+                            <form method="post" class="inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="toggle">
+                                <input type="hidden" name="source_id" value="{{ source.id }}">
+                                <button type="submit" class="px-3 py-1 rounded-full text-xs font-bold transition {% if source.is_active %}bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30{% else %}bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30{% endif %}">
+                                    {% if source.is_active %}نشط{% else %}متوقف{% endif %}
+                                </button>
+                            </form>
+                        </td>
+                        <td class="p-4">
+                            <form method="post" onsubmit="return confirm('هل أنت متأكد من حذف هذا المصدر؟');" class="inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="source_id" value="{{ source.id }}">
+                                <button type="submit" class="text-slate-500 hover:text-red-400 transition p-2" title="حذف">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 000-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="p-8 text-center text-slate-500">
+                            لا توجد مصادر مضافة بعد. قم بإضافة مصادر لبدء المراقبة.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Add Source Modal -->
+<div id="addSourceModal" class="fixed inset-0 bg-black/80 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="glass-panel w-full max-w-lg p-6 relative animate-fade-in">
+        <button onclick="document.getElementById('addSourceModal').classList.add('hidden')" class="absolute top-4 left-4 text-slate-400 hover:text-white">✕</button>
+        
+        <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+            <span class="text-cyan-400">+</span> إضافة مصدر جديد
+        </h2>
+
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add">
+
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">اسم المصدر / الصحيفة</label>
+                <input type="text" name="name" required class="w-full bg-slate-800/50 border border-slate-600 rounded p-2 text-white focus:border-cyan-500 outline-none" placeholder="مثال: واشنطن بوست">
+            </div>
+
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">رابط الموقع (URL)</label>
+                <input type="url" name="url" required class="w-full bg-slate-800/50 border border-slate-600 rounded p-2 text-white focus:border-cyan-500 outline-none dir-ltr text-right" placeholder="https://...">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">التصنيف / الدولة</label>
+                    <input type="text" name="category" list="categoriesList" class="w-full bg-slate-800/50 border border-slate-600 rounded p-2 text-white focus:border-cyan-500 outline-none" placeholder="اختر أو اكتب...">
+                    <datalist id="categoriesList">
+                        <option value="صحف أمريكية">
+                        <option value="صحف بريطانية">
+                        <option value="صحف إيرانية">
+                        <option value="صحف هندية">
+                        <option value="وكالات أنباء عالمية">
+                        <option value="مواقع تقنية">
+                        <option value="منتديات">
+                    </datalist>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">النوع</label>
+                    <select name="source_type" class="w-full bg-slate-800/50 border border-slate-600 rounded p-2 text-white focus:border-cyan-500 outline-none">
+                        {% for value, label in source_types %}
+                        <option value="{{ value }}" {% if value == 'WEB' %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="pt-4 flex justify-end gap-3">
+                <button type="button" onclick="document.getElementById('addSourceModal').classList.add('hidden')" class="px-4 py-2 rounded text-slate-400 hover:text-white transition">إلغاء</button>
+                <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-2 rounded font-bold transition shadow-lg shadow-cyan-500/20">حفظ المصدر</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

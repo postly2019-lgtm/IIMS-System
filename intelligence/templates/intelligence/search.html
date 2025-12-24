@@ -1,0 +1,384 @@
+{% extends 'intelligence/base.html' %}
+
+{% block content %}
+<div class="glass-panel p-6 mb-8">
+    <h2 class="text-xl font-bold mb-2">بحث استخباراتي متقدم</h2>
+    <div class="brand-bar mb-4"></div>
+    <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <!-- Search Term -->
+        <div class="col-span-2">
+            <label class="block text-xs mb-1" style="color: var(--muted)">كلمات البحث / الكيانات</label>
+            <input type="text" name="q" value="{{ query }}" 
+                   class="w-full rounded p-2 outline-none"
+                   style="background-color: rgba(13,19,32,0.8); border: 1px solid var(--border)"
+                   placeholder="بحث في العناوين، المحتوى، أو الكيانات...">
+        </div>
+
+        <!-- Source Filter -->
+        <div>
+            <label class="block text-xs mb-1" style="color: var(--muted)">المصدر</label>
+            <select name="source" class="w-full rounded p-2" style="background-color: rgba(13,19,32,0.8); border: 1px solid var(--border)">
+                <option value="">الكل</option>
+                {% for src in sources %}
+                <option value="{{ src.id }}">{{ src.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Classification Filter -->
+        <div>
+            <label class="block text-xs mb-1" style="color: var(--muted)">التصنيف الأمني</label>
+            <select name="classification" class="w-full rounded p-2" style="background-color: rgba(13,19,32,0.8); border: 1px solid var(--border)">
+                <option value="">الكل</option>
+                {% for code, label in classifications %}
+                <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Date Range -->
+        <div>
+            <label class="block text-xs mb-1" style="color: var(--muted)">من تاريخ</label>
+            <input type="date" name="date_from" class="w-full rounded p-2" style="background-color: rgba(13,19,32,0.8); border: 1px solid var(--border)">
+        </div>
+        <div>
+            <label class="block text-xs mb-1" style="color: var(--muted)">إلى تاريخ</label>
+            <input type="date" name="date_to" class="w-full rounded p-2" style="background-color: rgba(13,19,32,0.8); border: 1px solid var(--border)">
+        </div>
+
+        <!-- Submit -->
+        <div class="flex items-end col-span-2 md:col-span-2">
+            <button type="submit" class="w-full font-bold py-2 px-4 rounded transition" style="background-color: var(--primary); color: #031520">
+                تنفيذ البحث
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Live Ingestion Panel (Batch Processing) -->
+<div class="glass-panel p-6 mb-8 border-r-4" style="border-right-color: var(--accent);">
+    <div class="flex justify-between items-center cursor-pointer" onclick="document.getElementById('ingestForm').classList.toggle('hidden')">
+        <h3 class="text-lg font-bold flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            استهداف مصادر حية (Live Operations)
+        </h3>
+        <span class="text-xs px-2 py-1 rounded border" style="color: var(--muted); border-color: var(--border)">▼</span>
+    </div>
+    
+    <div id="ingestForm" class="hidden mt-4 pt-4 border-t" style="border-color: var(--border)">
+        <p class="text-sm mb-3" style="color: var(--muted)">
+            أدخل الروابط (رابط واحد في كل سطر). النظام سيقوم بمعالجتها على دفعات (5 روابط في كل دفعة).
+        </p>
+        
+        <form action="{% url 'fetch_urls' %}" method="post" id="urlFetchForm" class="space-y-4">
+            {% csrf_token %}
+            
+            <!-- Query Field -->
+            <div>
+                <label class="block text-xs mb-1" style="color: var(--primary); font-weight: bold;">موضوع البحث / كلمات مفتاحية للاستخراج</label>
+                <input type="text" name="fetch_query" 
+                       class="w-full rounded p-2 outline-none"
+                       style="background-color: rgba(13,19,32,0.8); border: 1px solid var(--border); color: var(--text);"
+                       placeholder="مثال: تحركات عسكرية، أسعار النفط، اسم شخصية...">
+                <p class="text-[10px] mt-1 opacity-70">سيقوم النظام بالبحث عن هذه الكلمات داخل الصفحات وجلب النصوص المتعلقة بها.</p>
+            </div>
+
+            <!-- URL Entry UI -->
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-2">
+                <div class="md:col-span-10">
+                    <input type="url" id="singleUrlInput" 
+                           class="w-full rounded p-2 outline-none dir-ltr text-left"
+                           style="background-color: rgba(13,19,32,0.8); border: 1px solid var(--border); color: #a7f3d0;"
+                           placeholder="https://example.com/news/article...">
+                </div>
+                <div class="md:col-span-2">
+                    <button type="button" onclick="addUrl()" class="w-full h-full rounded font-bold transition hover:opacity-90"
+                            style="background-color: var(--primary); color: #031520">
+                        إضافة +
+                    </button>
+                </div>
+            </div>
+
+            <!-- Visual List of URLs -->
+            <div id="urlListVisual" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar p-2 rounded" style="background: rgba(0,0,0,0.2);">
+                <div id="emptyMsg" class="text-center text-xs opacity-50 py-4">لم يتم إضافة روابط بعد</div>
+            </div>
+            
+            <div class="flex justify-between items-center text-xs text-slate-400 px-2">
+                <span id="urlCount">0 / 50 رابط</span>
+                <button type="button" onclick="clearUrls()" class="text-red-400 hover:underline">مسح الكل</button>
+            </div>
+
+            <!-- Progress & Logs Section -->
+            <div id="processingArea" class="hidden mt-4 p-4 rounded border border-white/10" style="background: rgba(0,0,0,0.3);">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold text-cyan-400">جاري المعالجة...</span>
+                    <span id="batchProgress" class="text-xs font-mono">0/0</span>
+                </div>
+                <!-- Progress Bar -->
+                <div class="w-full bg-slate-800 rounded-full h-1.5 mb-3">
+                    <div id="progressBar" class="bg-cyan-500 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <!-- Log Console -->
+                <div id="processLog" class="h-32 overflow-y-auto font-mono text-[10px] space-y-1 p-2 rounded bg-black/40 text-slate-300 custom-scrollbar dir-ltr text-left">
+                    <!-- Logs injected here -->
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <button type="button" onclick="startBatchProcessing()" id="startBtn" class="px-6 py-2 rounded font-bold flex items-center gap-2 transition hover:opacity-90" 
+                        style="background-color: var(--accent); color: #064e3b">
+                    <span>⚡</span>
+                    بدء المعالجة (Batch Process)
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let urlList = [];
+    let isProcessing = false;
+
+    // Allow Enter key to add URL
+    document.getElementById('singleUrlInput').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addUrl();
+        }
+    });
+
+    function addUrl() {
+        const input = document.getElementById('singleUrlInput');
+        let url = input.value.trim();
+        
+        if (!url) return;
+        
+        // Basic validation
+        if (!url.startsWith('http')) {
+            url = 'https://' + url;
+        }
+
+        try {
+            new URL(url); // Validate URL format
+        } catch (_) {
+            alert('الرابط غير صالح');
+            return;
+        }
+
+        if (urlList.includes(url)) {
+            alert('الرابط موجود بالفعل');
+            return;
+        }
+
+        if (urlList.length >= 50) {
+            alert('الحد الأقصى 50 رابط');
+            return;
+        }
+
+        urlList.push(url);
+        input.value = '';
+        renderUrlList();
+    }
+
+    function removeUrl(index) {
+        if(isProcessing) return;
+        urlList.splice(index, 1);
+        renderUrlList();
+    }
+    
+    function clearUrls() {
+        if(isProcessing) return;
+        urlList = [];
+        renderUrlList();
+    }
+
+    function renderUrlList() {
+        const container = document.getElementById('urlListVisual');
+        const countSpan = document.getElementById('urlCount');
+        
+        countSpan.innerText = `${urlList.length} / 50 رابط`;
+
+        if (urlList.length === 0) {
+            container.innerHTML = '<div id="emptyMsg" class="text-center text-xs opacity-50 py-4">لم يتم إضافة روابط بعد</div>';
+            return;
+        }
+
+        container.innerHTML = '';
+        urlList.forEach((url, index) => {
+            const div = document.createElement('div');
+            div.className = 'flex justify-between items-center p-2 rounded text-xs bg-white/5 border border-white/10 animate-fade-in';
+            div.innerHTML = `
+                <span class="truncate dir-ltr font-mono opacity-80">${url}</span>
+                <button type="button" onclick="removeUrl(${index})" class="text-red-400 hover:text-red-300 font-bold px-2" ${isProcessing ? 'disabled' : ''}>✕</button>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    // Batch Processing Logic
+    async function startBatchProcessing() {
+        if (urlList.length === 0) {
+            alert("الرجاء إضافة روابط أولاً");
+            return;
+        }
+        
+        const fetchQuery = document.querySelector('input[name="fetch_query"]').value;
+        const BATCH_SIZE = 5;
+        const totalUrls = urlList.length;
+        let processedCount = 0;
+
+        // UI Setup
+        isProcessing = true;
+        const startBtn = document.getElementById('startBtn');
+        startBtn.disabled = true;
+        startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        startBtn.innerHTML = '<span>⏳</span> جاري العمل...';
+        
+        document.getElementById('processingArea').classList.remove('hidden');
+        document.getElementById('singleUrlInput').disabled = true;
+        
+        const logContainer = document.getElementById('processLog');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('batchProgress');
+        
+        logContainer.innerHTML = ''; // Clear logs
+        addLog("Initializing batch processor...", 'info');
+        addLog(`Total URLs: ${totalUrls} | Batch Size: ${BATCH_SIZE}`, 'info');
+
+        // Chunking
+        for (let i = 0; i < totalUrls; i += BATCH_SIZE) {
+            const chunk = urlList.slice(i, i + BATCH_SIZE);
+            const currentBatchNum = Math.floor(i / BATCH_SIZE) + 1;
+            const totalBatches = Math.ceil(totalUrls / BATCH_SIZE);
+            
+            addLog(`>>> Processing Batch ${currentBatchNum}/${totalBatches} (${chunk.length} URLs)...`, 'info');
+
+            try {
+                const response = await fetch("{% url 'fetch_urls' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        urls: chunk,
+                        fetch_query: fetchQuery
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 'success') {
+                        addLog(`Batch ${currentBatchNum} Done: ${data.results.success} success, ${data.results.failed} failed`, 'success');
+                        
+                        // Log specific errors if any
+                        if (data.results.errors && data.results.errors.length > 0) {
+                            data.results.errors.forEach(err => addLog(`   ! Error: ${err}`, 'error'));
+                        }
+                    } else {
+                        addLog(`Batch ${currentBatchNum} Warning: ${data.message}`, 'warning');
+                    }
+                } else {
+                    addLog(`Batch ${currentBatchNum} Failed: Server returned ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addLog(`Batch ${currentBatchNum} Exception: ${error.message}`, 'error');
+            }
+
+            // Update Progress
+            processedCount += chunk.length;
+            const percentage = (processedCount / totalUrls) * 100;
+            progressBar.style.width = `${percentage}%`;
+            progressText.innerText = `${processedCount}/${totalUrls}`;
+
+            // Small delay between batches
+            if (processedCount < totalUrls) {
+                addLog("Waiting 1s before next batch...", 'info');
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        }
+
+        addLog("ALL OPERATIONS COMPLETED.", 'success');
+        startBtn.innerHTML = '<span>✓</span> اكتمل';
+        
+        // Refresh page after a delay to show results
+        setTimeout(() => {
+            window.location.reload();
+        }, 2500);
+    }
+
+    function addLog(msg, type) {
+        const div = document.createElement('div');
+        const time = new Date().toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'});
+        
+        let colorClass = 'text-blue-300';
+        if (type === 'error') colorClass = 'text-red-400';
+        if (type === 'success') colorClass = 'text-green-400';
+        if (type === 'warning') colorClass = 'text-yellow-400';
+
+        div.className = `${colorClass}`;
+        div.innerText = `[${time}] ${msg}`;
+        
+        const logContainer = document.getElementById('processLog');
+        logContainer.appendChild(div);
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+</script>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(0,0,0,0.1);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255,255,255,0.1);
+        border-radius: 3px;
+    }
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-in;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<!-- Results -->
+<div class="glass-panel p-6">
+    <h3 class="text-sm mb-4" style="color: var(--muted)">نتائج البحث ({{ reports.count }})</h3>
+    <div class="space-y-4">
+        {% for report in reports %}
+        <div onclick="window.location.href='{% url 'report_detail' report.id %}'" class="p-4 rounded-lg border cursor-pointer transition" style="background-color: rgba(13,19,32,0.6); border-color: var(--border)">
+            <div class="flex justify-between items-start mb-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] px-2 py-0.5 rounded status-badge-{{ report.classification }} font-bold">
+                        {{ report.get_classification_display }}
+                    </span>
+                    <span class="text-xs" style="color: var(--primary)">{{ report.source.name }}</span>
+                </div>
+                <span class="text-xs" style="color: var(--muted)">{{ report.published_at|date:"Y-m-d H:i" }}</span>
+            </div>
+            <h3 class="text-lg font-bold mb-2">{{ report.title }}</h3>
+            <p class="text-sm mb-3" style="color: var(--muted)">{{ report.content|truncatechars:300 }}</p>
+            
+            <!-- Entities Tags -->
+            <div class="flex flex-wrap gap-2 mt-2">
+                {% for entity in report.entities.all %}
+                <span class="text-[10px] px-2 py-1 rounded-full border" style="background-color: rgba(13,19,32,0.8); border-color: var(--border); color: var(--text)">
+                    #{{ entity.name }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="text-center text-slate-500 py-10">
+            لا توجد نتائج مطابقة لمعايير البحث.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

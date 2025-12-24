@@ -1,0 +1,141 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الدخول - نظام الاستخبارات المتكامل</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6 bg-[url('https://wallpaperaccess.com/full/1556608.jpg')] bg-cover bg-center bg-no-repeat bg-blend-overlay bg-slate-900/90">
+
+    <div class="glass-panel p-8 w-full max-w-md shadow-2xl relative overflow-hidden">
+        <!-- Decorative Elements -->
+        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent"></div>
+        
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-white mb-2">النظام الأمني لجمع المعلومات</h1>
+            <p class="text-slate-400 text-sm">بوابة الوصول الآمن</p>
+        </div>
+
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            
+            {% if form.errors %}
+            <div class="bg-red-500/20 border border-red-500/50 text-red-200 p-3 rounded text-sm text-center">
+                اسم المستخدم أو كلمة المرور غير صحيحة
+            </div>
+            {% endif %}
+
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">اسم المستخدم</label>
+                <input type="text" name="username" class="w-full bg-slate-800/50 border border-slate-600 rounded p-3 text-white focus:border-blue-500 outline-none transition-colors dir-ltr text-right" required autofocus>
+            </div>
+
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">كلمة المرور</label>
+                <input type="password" name="password" class="w-full bg-slate-800/50 border border-slate-600 rounded p-3 text-white focus:border-blue-500 outline-none transition-colors dir-ltr text-right" required>
+            </div>
+
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded transition-all transform hover:scale-[1.02]">
+                تسجيل الدخول
+            </button>
+            
+            <div class="relative flex py-2 items-center">
+                <div class="flex-grow border-t border-slate-700"></div>
+                <span class="flex-shrink-0 mx-4 text-slate-500 text-xs">أو</span>
+                <div class="flex-grow border-t border-slate-700"></div>
+            </div>
+
+            <button type="button" onclick="startScanner()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded border border-slate-500 flex items-center justify-center gap-2 transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                مسح بطاقة الهوية (QR)
+            </button>
+        </form>
+
+        <!-- Scanner Modal -->
+        <div id="scanner-modal" class="hidden fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+            <div class="bg-slate-800 p-4 rounded-lg w-full max-w-md">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-white font-bold">مسح رمز الاستجابة السريعة</h3>
+                    <button onclick="stopScanner()" class="text-slate-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div id="reader" class="w-full bg-black rounded overflow-hidden"></div>
+                <p class="text-center text-slate-400 text-sm mt-4">ضع رمز QR أمام الكاميرا</p>
+            </div>
+        </div>
+
+        <div class="mt-8 text-center text-xs text-slate-500">
+            <p>هذا النظام محمي ويخضع للمراقبة.</p>
+            <p>محاولات الدخول غير المصرح بها سيتم تسجيلها.</p>
+        </div>
+    </div>
+
+    <script>
+        let html5QrcodeScanner = null;
+
+        function startScanner() {
+            document.getElementById('scanner-modal').classList.remove('hidden');
+            
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess);
+        }
+
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    document.getElementById('scanner-modal').classList.add('hidden');
+                    html5QrcodeScanner.clear();
+                }).catch(err => console.log(err));
+            } else {
+                document.getElementById('scanner-modal').classList.add('hidden');
+            }
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            // Stop scanning
+            stopScanner();
+            
+            // Send to backend
+            fetch('{% url "qr_login" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ qr_data: decodedText })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    alert('فشل تسجيل الدخول: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('حدث خطأ أثناء الاتصال بالنظام');
+            });
+        }
+    </script>
+</body>
+</html>
