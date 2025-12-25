@@ -1,20 +1,33 @@
 {
-  "buildCommand": "python manage.py migrate && python manage.py collectstatic --noinput",
-  "installCommand": "pip install -r requirements.txt",
-  "framework": "django",
-  "env": {
-    "DEBUG": false,
-    "SECRET_KEY": "@change-this-in-production@"
-  },
-  "functions": {
-    "config/wsgi.py": {
-      "runtime": "python3.11"
-    }
-  },
-  "rewrites": [
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "config/wsgi.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "15mb",
+        "runtime": "python3.12"
+      }
+    },
+    {
+      "src": "build_script.sh",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "staticfiles"
+      }
     }
-  ]
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "config/wsgi.py"
+    }
+  ],
+  "env": {
+    "DEBUG": "False",
+    "SECRET_KEY": "@change-this-in-production@"
+  }
 }
