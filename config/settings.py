@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'core',          # Core Auth & Security
     'intelligence',  # Intelligence Platform
+    'intelligence_agent', # AI Intelligence Agent
 ]
 
 MIDDLEWARE = [

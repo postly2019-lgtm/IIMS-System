@@ -199,19 +199,35 @@
         
         countSpan.innerText = `${urlList.length} / 50 رابط`;
 
+        // Clear container safely
+        container.textContent = '';
+
         if (urlList.length === 0) {
-            container.innerHTML = '<div id="emptyMsg" class="text-center text-xs opacity-50 py-4">لم يتم إضافة روابط بعد</div>';
+            const emptyDiv = document.createElement('div');
+            emptyDiv.id = 'emptyMsg';
+            emptyDiv.className = 'text-center text-xs opacity-50 py-4';
+            emptyDiv.innerText = 'لم يتم إضافة روابط بعد';
+            container.appendChild(emptyDiv);
             return;
         }
 
-        container.innerHTML = '';
         urlList.forEach((url, index) => {
             const div = document.createElement('div');
             div.className = 'flex justify-between items-center p-2 rounded text-xs bg-white/5 border border-white/10 animate-fade-in';
-            div.innerHTML = `
-                <span class="truncate dir-ltr font-mono opacity-80">${url}</span>
-                <button type="button" onclick="removeUrl(${index})" class="text-red-400 hover:text-red-300 font-bold px-2" ${isProcessing ? 'disabled' : ''}>✕</button>
-            `;
+            
+            const span = document.createElement('span');
+            span.className = 'truncate dir-ltr font-mono opacity-80';
+            span.innerText = url;
+            
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'text-red-400 hover:text-red-300 font-bold px-2';
+            btn.innerText = '✕';
+            if (isProcessing) btn.disabled = true;
+            btn.onclick = () => removeUrl(index);
+            
+            div.appendChild(span);
+            div.appendChild(btn);
             container.appendChild(div);
         });
     }
@@ -233,7 +249,13 @@
         const startBtn = document.getElementById('startBtn');
         startBtn.disabled = true;
         startBtn.classList.add('opacity-50', 'cursor-not-allowed');
-        startBtn.innerHTML = '<span>⏳</span> جاري العمل...';
+        
+        // Update button content safely
+        startBtn.textContent = '';
+        const spinIcon = document.createElement('span');
+        spinIcon.innerText = '⏳';
+        startBtn.appendChild(spinIcon);
+        startBtn.appendChild(document.createTextNode(' جاري العمل...'));
         
         document.getElementById('processingArea').classList.remove('hidden');
         document.getElementById('singleUrlInput').disabled = true;
@@ -301,7 +323,12 @@
         }
 
         addLog("ALL OPERATIONS COMPLETED.", 'success');
-        startBtn.innerHTML = '<span>✓</span> اكتمل';
+        
+        startBtn.textContent = '';
+        const checkIcon = document.createElement('span');
+        checkIcon.innerText = '✓';
+        startBtn.appendChild(checkIcon);
+        startBtn.appendChild(document.createTextNode(' اكتمل'));
         
         // Refresh page after a delay to show results
         setTimeout(() => {
