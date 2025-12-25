@@ -21,7 +21,13 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-7kbmjh&#j#r5525=%60fr
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = ['*']
-CSRF_TRUSTED_ORIGINS = ['https://*.onrender.com', 'https://*.azurewebsites.net', 'https://*.railway.app', 'https://*.up.railway.app']
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.onrender.com', 
+    'https://*.azurewebsites.net', 
+    'https://*.railway.app', 
+    'https://*.up.railway.app',
+    'https://iims-system-production.up.railway.app'
+]
 
 # Application definition
 
