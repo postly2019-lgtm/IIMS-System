@@ -26,4 +26,4 @@ COPY . /app/
 RUN python manage.py collectstatic --noinput
 
 # Run the application
-CMD sh -c "python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}"
+CMD sh -c "python manage.py migrate && python manage.py createsuperuser_if_none_exists && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}"
