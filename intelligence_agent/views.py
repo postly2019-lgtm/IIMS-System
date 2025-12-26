@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from .models import AgentSession, AgentMessage, AgentDocument, AgentInstruction
-from .services import AIService
+from .services import GroqClient
 
 @login_required
 def agent_chat_view(request, session_id=None):
@@ -54,8 +54,23 @@ def send_message(request, session_id):
         session.title = content[:50] + "..."
         session.save()
 
-    service = AIService()
-    ai_message = service.generate_response(session, content)
+    # 1. Save User Message
+    AgentMessage.objects.create(
+        session=session,
+        role=AgentMessage.Role.USER,
+        content=content
+    )
+
+    # 2. Get AI Response
+    client = GroqClient()
+    ai_response_text = client.chat_completion(session, content)
+    
+    # 3. Save AI Message
+    ai_message = AgentMessage.objects.create(
+        session=session,
+        role=AgentMessage.Role.ASSISTANT,
+        content=ai_response_text
+    )
     
     return JsonResponse({
         'status': 'success',

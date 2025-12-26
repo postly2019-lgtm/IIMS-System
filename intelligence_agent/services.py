@@ -1,80 +1,82 @@
 import os
-import json
+import logging
 from django.conf import settings
 from .models import AgentInstruction, AgentMessage
 
-class AIService:
-    """
-    Service to handle interactions with the AI Model (e.g., Groq/Llama 3).
-    """
-    
+logger = logging.getLogger(__name__)
+
+class GroqClient:
     def __init__(self):
-        # In a real scenario, we would use os.environ.get("GROQ_API_KEY")
-        # For this implementation, we will simulate the response if no key is present.
-        self.api_key = os.environ.get("GROQ_API_KEY")
-        
+        try:
+            from groq import Groq
+            api_key = settings.GROQ_API_KEY
+            if not api_key:
+                logger.warning("GROQ_API_KEY is not set.")
+                self.client = None
+            else:
+                self.client = Groq(api_key=api_key)
+        except ImportError:
+            logger.error("Groq SDK not installed.")
+            self.client = None
+
     def get_system_prompt(self):
-        """Retrieves the active system prompt."""
+        """Retrieve the active system prompt."""
         instruction = AgentInstruction.objects.filter(is_active=True).first()
         if instruction:
             return instruction.system_prompt
-        return "You are a helpful intelligence assistant."
+        return "You are a helpful AI assistant."
 
-    def generate_response(self, session, user_message_content):
+    def chat_completion(self, session, user_message_content):
         """
-        Generates a response based on the conversation history and RAG.
+        Send message to Groq API and return the response.
         """
-        # 1. Save User Message
-        AgentMessage.objects.create(
-            session=session,
-            role=AgentMessage.Role.USER,
-            content=user_message_content
-        )
+        if not self.client:
+            return "Error: AI Service is not configured (Missing API Key or SDK)."
 
-        # 2. Build Context (History + RAG)
-        # TODO: Implement RAG (Search Documents & Intelligence Reports)
-        # For now, we just take the last 10 messages
-        history = AgentMessage.objects.filter(session=session).order_by('-created_at')[:10:-1]
+        # 1. Prepare History
+        messages = []
         
-        # 3. Call AI Model
-        # Mocking the response for now as we don't have a real API Key in this env
-        response_text = self._mock_inference(user_message_content)
+        # System Prompt
+        system_prompt = self.get_system_prompt()
+        messages.append({"role": "system", "content": system_prompt})
 
-        # 4. Save Assistant Message
-        msg = AgentMessage.objects.create(
-            session=session,
-            role=AgentMessage.Role.ASSISTANT,
-            content=response_text
-        )
-        return msg
+        # Chat History (Last 10 messages for context window management)
+        # In a real RAG system, we would select relevant history based on vector similarity
+        history = session.messages.all().order_by('created_at')[:10] 
+        for msg in history:
+            role = "user" if msg.role == AgentMessage.Role.USER else "assistant"
+            messages.append({"role": role, "content": msg.content})
 
-    def _mock_inference(self, prompt):
-        """
-        Simulates an intelligent response for demonstration purposes.
-        """
-        prompt_lower = prompt.lower()
-        if "تحليل" in prompt_lower or "analyze" in prompt_lower:
-            return (
-                "**تحليل استخباراتي أولي:**\n\n"
-                "بناءً على المعطيات المقدمة، يمكن استخلاص النقاط التالية:\n"
-                "1. **المؤشرات الأولية:** تشير المعلومات إلى تصاعد في النشاط.\n"
-                "2. **التقييم:** مستوى التهديد يعتبر متوسطاً مع احتمالية للتصعيد.\n"
-                "3. **التوصيات:** يوصى بمراقبة المصادر المفتوحة وتكثيف البحث في المناطق المذكورة.\n\n"
-                "*هذا رد تلقائي (محاكاة) نظراً لعدم توفر مفتاح API فعلي.*"
+        # Current Message (Already added to DB by view? If not, add it here)
+        # Assuming the view adds the user message to DB before calling this service
+        # If the view passes the content string but hasn't saved it yet, we add it to the list
+        # But usually we want to include the current message.
+        # Let's assume the view handles saving the user message to DB first.
+        # So it's already in `history` if we query all.
+        # However, `history` above queries all messages.
+        # If `user_message_content` is passed separately, we might want to ensure we don't duplicate.
+        # Let's verify how we'll call this.
+        
+        # Refined approach: 
+        # The view creates the User Message object.
+        # Then calls this service.
+        # So `session.messages.all()` includes the latest user message.
+        
+        # 2. Call API
+        try:
+            completion = self.client.chat.completions.create(
+                model="llama3-70b-8192",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=2048,
+                top_p=1,
+                stream=False,
+                stop=None,
             )
-        elif "بحث" in prompt_lower or "search" in prompt_lower:
-             return (
-                "**نتائج البحث:**\n\n"
-                "قمت بالبحث في المصادر المتاحة (التقارير الداخلية والمستندات).\n"
-                "- لم يتم العثور على تطابق دقيق في قاعدة البيانات الحالية.\n"
-                "- يرجى تزويدي بمزيد من التفاصيل أو كلمات مفتاحية محددة."
-            )
-        else:
-            return (
-                "أهلاً بك. أنا وكيلك الذكي للمهام الاستخباراتية.\n"
-                "يمكنني مساعدتك في:\n"
-                "- تحليل المقالات والروابط.\n"
-                "- البحث في الأرشيف.\n"
-                "- تقديم تقديرات موقف.\n\n"
-                "كيف يمكنني خدمتك اليوم؟"
-            )
+            
+            ai_response = completion.choices[0].message.content
+            return ai_response
+
+        except Exception as e:
+            logger.error(f"Groq API Error: {str(e)}")
+            return f"System Error: Unable to process request. {str(e)}"

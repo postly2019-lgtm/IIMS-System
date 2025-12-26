@@ -91,6 +91,9 @@ DATABASES = {
 # Custom User Model
 AUTH_USER_MODEL = 'core.User'
 
+# AI Configuration
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
+
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 

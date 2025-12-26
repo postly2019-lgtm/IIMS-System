@@ -1,6 +1,7 @@
 from django.test import TestCase, Client
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from unittest.mock import patch
 from .models import AgentSession, AgentMessage, AgentInstruction
 
 User = get_user_model()
@@ -23,8 +24,13 @@ class IntelligenceAgentTests(TestCase):
         self.assertEqual(response.status_code, 302) # Redirects to chat
         self.assertTrue(AgentSession.objects.filter(user=self.user).exists())
 
-    def test_send_message_flow(self):
+    @patch('intelligence_agent.views.GroqClient')
+    def test_send_message_flow(self, MockGroqClient):
         """Test sending a message and receiving a mock response."""
+        # Setup Mock
+        mock_instance = MockGroqClient.return_value
+        mock_instance.chat_completion.return_value = "This is a mocked AI response."
+
         # 1. Create Session
         session = AgentSession.objects.create(user=self.user, title="Test Session")
         
@@ -37,7 +43,7 @@ class IntelligenceAgentTests(TestCase):
         self.assertEqual(response.status_code, 200)
         json_response = response.json()
         self.assertEqual(json_response['status'], 'success')
-        self.assertTrue('ai_message' in json_response)
+        self.assertEqual(json_response['ai_message'], "This is a mocked AI response.")
         
         # 4. Verify DB
         self.assertEqual(AgentMessage.objects.filter(session=session).count(), 2) # User + Assistant
