@@ -31,7 +31,7 @@ class GroqClient:
         Send message to Groq API and return the response.
         """
         if not self.client:
-            return "Error: AI Service is not configured (Missing API Key or SDK)."
+            return "⚠️ عذراً، خدمة الذكاء الاصطناعي غير متصلة.\nيرجى الذهاب إلى صفحة 'إعدادات الوكيل' (Agent Settings) وإضافة مفتاح GROQ_API_KEY."
 
         # 1. Prepare History
         messages = []
