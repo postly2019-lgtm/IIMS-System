@@ -23,11 +23,11 @@ def test_connection():
         print(f"✅ API Key found: {api_key[:4]}...{api_key[-4:]}")
 
     # 3. Test Connection
-    print("\nAttempting to connect to Groq API (llama3-70b-8192)...")
+    print("\nAttempting to connect to Groq API (llama-3.3-70b-versatile)...")
     try:
         client = Groq(api_key=api_key)
         completion = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "You are a test assistant."},
                 {"role": "user", "content": "Reply with 'Connection Successful!' if you receive this."}
