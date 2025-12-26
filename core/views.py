@@ -4,6 +4,7 @@ from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import user_passes_test, login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Q
+from django.contrib import messages
 from .models import UserActionLog
 from .forms import UserForm
 import json
@@ -120,3 +121,35 @@ def qr_login_view(request):
             return JsonResponse({'success': False, 'message': str(e)})
             
     return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=405)
+
+def password_reset_request_view(request):
+    if request.method == 'POST':
+        username_or_job = request.POST.get('username_or_job')
+        User = get_user_model()
+        user = None
+        
+        # Try to find user
+        try:
+            user = User.objects.get(username=username_or_job)
+        except User.DoesNotExist:
+            try:
+                user = User.objects.get(job_number=username_or_job)
+            except User.DoesNotExist:
+                pass
+        
+        if user:
+            # Log the request
+            UserActionLog.objects.create(
+                user=user,
+                action=UserActionLog.ActionType.OTHER,
+                target_object="Password Reset Request",
+                details=f"User {user.username} requested password reset.",
+                ip_address=request.META.get('REMOTE_ADDR')
+            )
+            messages.success(request, "تم استلام طلبك. يرجى مراجعة مسؤول النظام لإعادة تعيين كلمة المرور.")
+        else:
+            messages.error(request, "بيانات المستخدم غير صحيحة.")
+            
+        return redirect('login')
+        
+    return render(request, 'core/password_reset_request.html')

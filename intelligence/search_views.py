@@ -53,7 +53,7 @@ def fetch_urls_view(request):
                 if request.user.is_authenticated:
                     UserActionLog.objects.create(
                         user=request.user,
-                        action=UserActionLog.ActionType.INGEST,
+                        action=UserActionLog.ActionType.OTHER,
                         target_object=f"Manual URL Fetch ({len(urls_list)} URLs)",
                         details=f"Query: {fetch_query} | Success: {results['success']}",
                         ip_address=request.META.get('REMOTE_ADDR')

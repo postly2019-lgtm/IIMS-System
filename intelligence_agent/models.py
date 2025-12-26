@@ -75,6 +75,7 @@ class AgentMessage(models.Model):
     session = models.ForeignKey(AgentSession, on_delete=models.CASCADE, related_name='messages')
     role = models.CharField(max_length=20, choices=Role.choices)
     content = models.TextField(_("المحتوى"))
+    attachment = models.FileField(_("مرفق"), upload_to='chat_attachments/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
     # Metadata for citations or reasoning

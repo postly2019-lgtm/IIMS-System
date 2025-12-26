@@ -4,6 +4,18 @@ from django.contrib import messages
 from .models import Source
 from core.models import UserActionLog
 
+from .ingestion import IngestionEngine
+import threading
+
+def fetch_source_in_background(source_id):
+    try:
+        source = Source.objects.get(pk=source_id)
+        engine = IngestionEngine()
+        if source.source_type == Source.SourceType.RSS:
+            engine.process_rss_source(source)
+    except Exception as e:
+        print(f"Background fetch failed for source {source_id}: {e}")
+
 @login_required
 @user_passes_test(lambda u: u.is_staff)
 def source_manager_view(request):
@@ -21,7 +33,7 @@ def source_manager_view(request):
             source_type = request.POST.get('source_type', Source.SourceType.WEBSITE)
             
             if name and url:
-                Source.objects.create(
+                source = Source.objects.create(
                     name=name,
                     url=url,
                     category=category,
@@ -38,6 +50,10 @@ def source_manager_view(request):
                     details=f"Added source URL: {url} Category: {category}",
                     ip_address=request.META.get('REMOTE_ADDR')
                 )
+
+                # Trigger immediate fetch in background thread
+                threading.Thread(target=fetch_source_in_background, args=(source.id,)).start()
+
             else:
                 messages.error(request, "الاسم والرابط حقول مطلوبة.")
                 
@@ -55,6 +71,10 @@ def source_manager_view(request):
             source.save()
             status = "نشط" if source.is_active else "غير نشط"
             messages.success(request, f"تم تغيير حالة {source.name} إلى {status}")
+
+        elif action == 'refresh_all':
+            threading.Thread(target=IngestionEngine().fetch_all).start()
+            messages.success(request, "تم بدء عملية تحديث المصادر في الخلفية.")
 
         return redirect('source_manager')
 

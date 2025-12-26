@@ -11,6 +11,13 @@
             <p class="text-slate-400">تحديد المواقع والصحف التي يتم مراقبتها وجلب المعلومات منها.</p>
         </div>
         <div class="flex gap-2">
+            <form method="post" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="refresh_all">
+                <button type="submit" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition border border-white/10">
+                    <span>↻</span> تحديث الكل
+                </button>
+            </form>
             <button onclick="document.getElementById('addSourceModal').classList.remove('hidden')" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition">
                 <span>+</span> إضافة مصدر جديد
             </button>

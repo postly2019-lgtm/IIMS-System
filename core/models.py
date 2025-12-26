@@ -10,9 +10,15 @@ class User(AbstractUser):
         MILITARY = 'MIL', _('عسكري')
         CIVILIAN = 'CIV', _('مدني')
 
-    job_number = models.CharField(_("الرقم الوظيفي"), max_length=20, unique=True, null=True, blank=True)
+    class Role(models.TextChoices):
+        ADMIN = 'ADMIN', _('مدير النظام (Admin)')
+        MANAGER = 'MANAGER', _('مدير (System Manager)')
+        ANALYST = 'ANALYST', _('محلل (Analyst)')
+
+    job_number = models.CharField(_("الرقم الوظيفي"), max_length=20, unique=True, null=True, blank=False)
     mobile_number = models.CharField(_("رقم الجوال"), max_length=15, null=True, blank=True)
     rank = models.CharField(_("الرتبة"), max_length=10, choices=Rank.choices, default=Rank.CIVILIAN)
+    role = models.CharField(_("الدور الوظيفي"), max_length=10, choices=Role.choices, default=Role.ANALYST)
     photo = models.ImageField(_("الصورة الشخصية"), upload_to='users/photos/', null=True, blank=True)
     qr_code = models.ImageField(_("رمز الاستجابة السريعة"), upload_to='users/qrcodes/', null=True, blank=True)
     

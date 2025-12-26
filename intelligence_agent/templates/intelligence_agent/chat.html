@@ -67,17 +67,30 @@
         </div>
 
         <!-- Input Area -->
-        <div class="p-4 bg-slate-900/50 border-t border-slate-700">
-            <form id="chat-form" class="relative">
+        <div class="p-4 bg-slate-900/50 border-t border-slate-700 relative">
+            <!-- File Indicator -->
+            <div id="file-indicator" class="hidden absolute right-4 -top-10 bg-slate-800 text-xs px-3 py-2 rounded-lg text-cyan-400 border border-cyan-500/30 shadow-lg flex items-center gap-2 animate-fade-in">
+                <span>📎</span>
+                <span id="file-name" class="max-w-[200px] truncate"></span>
+                <button type="button" onclick="clearFile()" class="text-slate-500 hover:text-red-400 ml-2">×</button>
+            </div>
+
+            <form id="chat-form" class="relative" enctype="multipart/form-data">
                 {% csrf_token %}
                 <textarea 
                     name="content" 
                     id="message-input"
                     rows="1"
-                    class="w-full bg-slate-800 border border-slate-600 rounded-xl pl-12 pr-4 py-4 text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none resize-none scrollbar-hide"
+                    class="w-full bg-slate-800 border border-slate-600 rounded-xl pl-24 pr-4 py-4 text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none resize-none scrollbar-hide"
                     placeholder="اكتب تعليماتك للتحليل أو الاستفسار هنا..."
                     onkeydown="if(event.keyCode == 13 && !event.shiftKey) { event.preventDefault(); this.form.dispatchEvent(new Event('submit')); }"></textarea>
                 
+                <!-- File Upload Button -->
+                <label for="file-upload" class="absolute left-14 top-2 bottom-2 text-slate-400 hover:text-cyan-400 w-10 flex items-center justify-center cursor-pointer transition" title="إرفاق ملف">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                    <input id="file-upload" type="file" name="attachment" class="hidden" onchange="updateFileIndicator(this)">
+                </label>
+
                 <button type="submit" class="absolute left-2 top-2 bottom-2 bg-cyan-600 hover:bg-cyan-500 text-white w-10 rounded-lg flex items-center justify-center transition disabled:opacity-50 disabled:cursor-not-allowed">
                     <svg class="w-5 h-5 rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
                 </button>
@@ -93,14 +106,51 @@
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
+    function updateFileIndicator(input) {
+        const indicator = document.getElementById('file-indicator');
+        const fileNameSpan = document.getElementById('file-name');
+        if (input.files && input.files[0]) {
+            fileNameSpan.textContent = input.files[0].name;
+            indicator.classList.remove('hidden');
+        } else {
+            indicator.classList.add('hidden');
+        }
+    }
+
+    function clearFile() {
+        const input = document.getElementById('file-upload');
+        input.value = '';
+        updateFileIndicator(input);
+    }
+
     document.getElementById('chat-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const input = document.getElementById('message-input');
+        const fileInput = document.getElementById('file-upload');
         const content = input.value.trim();
-        if (!content) return;
+        
+        if (!content && !fileInput.files.length) return;
 
         // Append User Message Locally
-        appendMessage('user', content);
+        if (content) {
+            appendMessage('user', content);
+        }
+
+        if (fileInput.files.length) {
+            const messagesDiv = document.getElementById('chat-messages');
+            const fileMsgHtml = `
+            <div class="flex gap-4 flex-row-reverse animate-fade-in mb-6">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-cyan-600">👤</div>
+                <div class="max-w-[80%]">
+                    <div class="p-4 rounded-xl bg-cyan-900/40 border border-cyan-700/50 text-white shadow-lg leading-relaxed flex items-center gap-2">
+                        <span>📎</span> مرفق: ${fileInput.files[0].name}
+                    </div>
+                    <div class="text-xs text-slate-500 mt-1 px-1 text-left">Now</div>
+                </div>
+            </div>`;
+            messagesDiv.insertAdjacentHTML('beforeend', fileMsgHtml);
+        }
+
         input.value = '';
         
         // Show Typing
@@ -108,10 +158,8 @@
         chatMessages.scrollTop = chatMessages.scrollHeight;
 
         try {
-            const formData = new FormData();
-            formData.append('content', content);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-
+            const formData = new FormData(e.target);
+            
             const response = await fetch("{% url 'agent_send_message' active_session.id|default:0 %}", {
                 method: 'POST',
                 body: formData
@@ -124,6 +172,7 @@
             
             if (data.status === 'success') {
                 appendMessage('assistant', data.ai_message);
+                clearFile();
             }
         } catch (error) {
             console.error('Error:', error);
