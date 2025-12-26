@@ -19,18 +19,10 @@ RUN apt-get update && apt-get install -y \
 # Install python dependencies
 COPY requirements.txt /app/
 RUN pip install --upgrade pip
-# Explicitly install Django to ensure it is present
-RUN pip install django==6.0
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Debug: Verify installation
-RUN pip list
 
 # Copy project
 COPY . /app/
 
-# Collect static files
-RUN python manage.py collectstatic --noinput
-
-# Run the application
-CMD sh -c "python manage.py migrate && python manage.py createsuperuser_if_none_exists && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}"
+# Run the application (Collect static files at runtime)
+CMD sh -c "python manage.py collectstatic --noinput && python manage.py migrate && python manage.py createsuperuser_if_none_exists && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}"
