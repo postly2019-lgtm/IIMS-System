@@ -29,6 +29,12 @@ CSRF_TRUSTED_ORIGINS = [
     'https://iims-system-production.up.railway.app'
 ]
 
+# Security Settings for Railway/Production
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
+
+
 # Application definition
 
 INSTALLED_APPS = [
