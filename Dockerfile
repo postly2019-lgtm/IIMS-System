@@ -25,6 +25,9 @@ RUN pip list | grep qrcode || echo "qrcode not found in pip list"
 # Copy project
 COPY . /app/
 
+# Set PYTHONPATH to include the current directory
+ENV PYTHONPATH=/app
+
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
