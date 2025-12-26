@@ -107,8 +107,13 @@ def agent_settings_view(request):
     instruction = AgentInstruction.objects.first()
     documents = AgentDocument.objects.filter(uploaded_by=request.user).order_by('-created_at')
     
+    # Check if API Key is configured
+    from django.conf import settings
+    api_key_configured = bool(settings.GROQ_API_KEY)
+
     context = {
         'instruction': instruction,
-        'documents': documents
+        'documents': documents,
+        'api_key_configured': api_key_configured
     }
     return render(request, 'intelligence_agent/settings.html', context)
