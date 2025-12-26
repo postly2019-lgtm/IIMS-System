@@ -50,6 +50,7 @@ class UserActionLog(models.Model):
         PRINT_REPORT = 'PRINT', _('طباعة تقرير')
         EXPORT = 'EXPORT', _('تصدير بيانات')
         ACCESS_DENIED = 'DENIED', _('محاولة وصول مرفوضة')
+        OTHER = 'OTHER', _('أخرى')
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name=_("المستخدم"), related_name='audit_logs')
     action = models.CharField(_("الإجراء"), max_length=10, choices=ActionType.choices)
