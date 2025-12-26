@@ -2,6 +2,8 @@ import os
 import logging
 from django.conf import settings
 from .models import AgentInstruction, AgentMessage
+from intelligence.models import IntelligenceReport
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +23,48 @@ class GroqClient:
 
     def get_system_prompt(self):
         """Retrieve the active system prompt."""
-        instruction = AgentInstruction.objects.filter(is_active=True).first()
+        instruction = AgentInstruction.objects.first() # Simplified to get the first/default
         if instruction:
             return instruction.system_prompt
-        return "You are a helpful AI assistant."
+        # Fallback default prompt if database is empty
+        return """أنت "المحلل الذكي" (Intelligence Agent)، خبير استراتيجي في الأمن القومي والشؤون العسكرية والسياسية.
+        مهمتك: تقديم تحليلات استخباراتية دقيقة، موثقة، وعميقة.
+        
+        القواعد الصارمة:
+        1. ابدأ دائماً بالأخبار العسكرية والترندات الحصرية، ثم السياسية، ثم الأزمات العالمية.
+        2. تحقق من المصداقية بصرامة. أشر إلى أي تناقضات.
+        3. لكل خبر، قدم:
+           - الملخص (Summary)
+           - التحليل الاستخباراتي (Intelligence Analysis): ماذا يعني هذا؟ ما هي التداعيات؟
+           - مستوى المصداقية (Credibility Assessment).
+        4. اعتمد على التقارير المرفقة (Context) كمصدر أساسي للمعلومات الموثوقة.
+        """
+
+    def get_relevant_context(self, query):
+        """
+        Retrieves relevant intelligence reports from the database based on the query.
+        Simple Keyword Search RAG.
+        """
+        if not query:
+            return ""
+
+        # Search in title, content, and entities
+        reports = IntelligenceReport.objects.filter(
+            Q(title__icontains=query) | 
+            Q(content__icontains=query) |
+            Q(entities__name__icontains=query)
+        ).order_by('-published_at', '-credibility_score')[:10]
+
+        if not reports.exists():
+            return ""
+
+        context_str = "\n--- تقارير استخباراتية ذات صلة (Internal Intelligence Reports) ---\n"
+        for report in reports:
+            context_str += f"- [ID:{report.id}] {report.published_at.strftime('%Y-%m-%d')}: {report.title}\n"
+            context_str += f"  المصدر: {report.source.name} (Credibility: {report.credibility_score})\n"
+            context_str += f"  المحتوى: {report.content[:300]}...\n\n"
+        
+        return context_str
 
     def chat_completion(self, session, user_message_content):
         """
@@ -38,36 +78,28 @@ class GroqClient:
         
         # System Prompt
         system_prompt = self.get_system_prompt()
+        
+        # 2. Get RAG Context (from internal reports)
+        # We use the current user message content to find relevant reports
+        context_data = self.get_relevant_context(user_message_content)
+        
+        if context_data:
+            system_prompt += f"\n\n{context_data}\n\nاستخدم التقارير أعلاه للإجابة بدقة ومصداقية. إذا لم تجد معلومات كافية، صرح بذلك."
+
         messages.append({"role": "system", "content": system_prompt})
 
-        # Chat History (Last 10 messages for context window management)
-        # In a real RAG system, we would select relevant history based on vector similarity
+        # Chat History (Last 10 messages)
         history = session.messages.all().order_by('created_at')[:10] 
         for msg in history:
             role = "user" if msg.role == AgentMessage.Role.USER else "assistant"
             messages.append({"role": role, "content": msg.content})
 
-        # Current Message (Already added to DB by view? If not, add it here)
-        # Assuming the view adds the user message to DB before calling this service
-        # If the view passes the content string but hasn't saved it yet, we add it to the list
-        # But usually we want to include the current message.
-        # Let's assume the view handles saving the user message to DB first.
-        # So it's already in `history` if we query all.
-        # However, `history` above queries all messages.
-        # If `user_message_content` is passed separately, we might want to ensure we don't duplicate.
-        # Let's verify how we'll call this.
-        
-        # Refined approach: 
-        # The view creates the User Message object.
-        # Then calls this service.
-        # So `session.messages.all()` includes the latest user message.
-        
-        # 2. Call API
+        # 3. Call API
         try:
             completion = self.client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=messages,
-                temperature=0.7,
+                temperature=0.6, # Lower temperature for more factual/analytical responses
                 max_tokens=2048,
                 top_p=1,
                 stream=False,
