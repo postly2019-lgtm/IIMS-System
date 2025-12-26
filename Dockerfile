@@ -26,4 +26,4 @@ RUN pip install --upgrade pip && \
 COPY . /app/
 
 # Runtime Command (Collectstatic runs here to guarantee environment integrity)
-CMD sh -c "python manage.py collectstatic --noinput && python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}"
+CMD sh -c "python manage.py collectstatic --noinput && python manage.py migrate && python manage.py createsuperuser_if_none_exists && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}"
