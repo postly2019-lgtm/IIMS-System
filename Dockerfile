@@ -19,14 +19,15 @@ RUN apt-get update && apt-get install -y \
 # Install python dependencies
 COPY requirements.txt /app/
 RUN pip install --upgrade pip
+# Explicitly install Django to ensure it is present
+RUN pip install django==6.0
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip list | grep qrcode || echo "qrcode not found in pip list"
+
+# Debug: Verify installation
+RUN pip list
 
 # Copy project
 COPY . /app/
-
-# Set PYTHONPATH to include the current directory
-ENV PYTHONPATH=/app
 
 # Collect static files
 RUN python manage.py collectstatic --noinput
