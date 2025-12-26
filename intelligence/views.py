@@ -4,7 +4,9 @@ from core.models import UserActionLog
 from django.db.models import Count
 from django.utils import timezone
 from datetime import timedelta
+from django.contrib.auth.decorators import login_required
 
+@login_required
 def dashboard_view(request):
     recent_reports = IntelligenceReport.objects.all()[:20]
     total_reports = IntelligenceReport.objects.count()
@@ -38,5 +40,6 @@ def report_detail(request, report_id):
     }
     return render(request, 'intelligence/report_detail.html', context)
 
+@login_required
 def graph_view(request):
     return render(request, 'intelligence/graph.html', {})
