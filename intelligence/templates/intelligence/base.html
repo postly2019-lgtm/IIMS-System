@@ -6,26 +6,20 @@
     <title>النظام الأمني لجمع المعلومات</title>
     
     <!-- Sovereign Style Handling -->
-    {% load static %}
-    {% if debug %}
-        <!-- Development Mode: Use CDN for rapid iteration -->
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script>
-            tailwind.config = {
-                theme: {
-                    extend: {
-                        colors: {
-                            primary: '#22d3ee',
-                            accent: '#10b981',
-                        }
+    <!-- Fallback to CDN for Production Stability until Local Build Pipeline is verified -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#22d3ee',
+                        accent: '#10b981',
                     }
                 }
             }
-        </script>
-    {% else %}
-        <!-- Production Mode: Use Sovereign Local Build -->
-        <link href="{% static 'css/output.css' %}" rel="stylesheet">
-    {% endif %}
+        }
+    </script>
 
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -297,8 +291,8 @@
                         }
                         
                         // Show Toast for the latest notification if it's new
-                        const latest = data.notifications[0];
-                        if (!document.getElementById('toast-' + latest.id)) {
+                        const latest = notifs[0];
+                        if (latest && !document.getElementById('toast-' + latest.id)) {
                              showToast(latest.id, latest.title, latest.message, latest.level, latest.report_id);
                         }
                     } else {
