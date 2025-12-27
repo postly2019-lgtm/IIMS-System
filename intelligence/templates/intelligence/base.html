@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+{% load static %}
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -100,8 +101,9 @@
     <!-- SIDEBAR NAVIGATION ONLY - NO TOP MENU -->
     <aside id="main-sidebar" class="glass-panel flex flex-col p-6">
         <!-- Brand / Title -->
-        <div class="mb-10 text-center">
-            <h1 class="text-2xl font-bold mb-1" style="color: var(--primary)">نظام الاستخبارات</h1>
+        <div class="mb-10 text-center flex flex-col items-center">
+            <img src="{% static 'images/logo.png' %}" alt="AI Team Logo" class="w-24 h-24 mb-3 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)]">
+            <h1 class="text-xl font-bold mb-1" style="color: var(--primary)">AI Team</h1>
             <p class="text-[10px] tracking-widest uppercase opacity-70">Integrated System</p>
             <div class="brand-bar mt-4 mx-auto w-1/2"></div>
         </div>
