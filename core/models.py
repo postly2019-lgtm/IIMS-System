@@ -16,6 +16,7 @@ class User(AbstractUser):
         ANALYST = 'ANALYST', _('محلل (Analyst)')
 
     job_number = models.CharField(_("الرقم الوظيفي"), max_length=20, unique=True, null=True, blank=False)
+    national_id = models.CharField(_("رقم الهوية الوطنية"), max_length=10, unique=True, null=True, blank=True)
     mobile_number = models.CharField(_("رقم الجوال"), max_length=15, null=True, blank=True)
     rank = models.CharField(_("الرتبة"), max_length=10, choices=Rank.choices, default=Rank.CIVILIAN)
     role = models.CharField(_("الدور الوظيفي"), max_length=10, choices=Role.choices, default=Role.ANALYST)

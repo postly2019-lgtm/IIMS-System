@@ -162,7 +162,10 @@
             
             const response = await fetch("{% url 'agent_send_message' active_session.id|default:0 %}", {
                 method: 'POST',
-                body: formData
+                body: formData,
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
             });
 
             const data = await response.json();

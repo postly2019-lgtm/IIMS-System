@@ -27,8 +27,9 @@ class UserManagementTests(TestCase):
             'last_name': 'User',
             'job_number': '12345',
             'mobile_number': '0500000000',
-            'password': 'password123',
-            'rank': 'CIV'
+            'password': 'StrongPass123!@#',
+            'rank': 'CIV',
+            'role': 'ANALYST'
         }
         response = self.client.post(url, data)
         self.assertRedirects(response, reverse('user_list'))
@@ -37,7 +38,7 @@ class UserManagementTests(TestCase):
         new_user = self.User.objects.get(username='newuser')
         self.assertEqual(new_user.mobile_number, '0500000000')
         self.assertEqual(new_user.job_number, '12345')
-        self.assertTrue(new_user.check_password('password123'))
+        self.assertTrue(new_user.check_password('StrongPass123!@#'))
         
         # Verify QR code generated
         self.assertTrue(new_user.qr_code)
@@ -69,3 +70,51 @@ class UserManagementTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()['success'])
+
+    def test_user_create_with_national_id(self):
+        url = reverse('user_create')
+        data = {
+            'username': 'natuser',
+            'first_name': 'Nat',
+            'last_name': 'User',
+            'email': 'nat@example.com',
+            'job_number': '54321',
+            'national_id': '1000000001',
+            'mobile_number': '0555555555',
+            'password': 'StrongPass123!@#',
+            'rank': 'CIV',
+            'role': 'ANALYST'
+        }
+        response = self.client.post(url, data)
+        self.assertRedirects(response, reverse('user_list'))
+        
+        # Verify user created with national_id
+        new_user = self.User.objects.get(username='natuser')
+        self.assertEqual(new_user.national_id, '1000000001')
+        self.assertEqual(new_user.email, 'nat@example.com')
+
+    def test_password_recovery_with_national_id(self):
+        # Create user with national_id
+        user = self.User.objects.create_user(
+            username='recoveruser',
+            email='recover@example.com',
+            password='oldpassword',
+            job_number='REC001',
+            national_id='1000000002'
+        )
+        
+        url = reverse('password_reset_request') # Ensure this URL name matches urls.py
+        data = {
+            'job_number': 'REC001',
+            'national_id': '1000000002',
+            'email': 'recover@example.com',
+            'new_password': 'NewStrongPassword123!'
+        }
+        
+        response = self.client.post(url, data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "تم تغيير كلمة المرور بنجاح")
+        
+        # Verify password changed
+        user.refresh_from_db()
+        self.assertTrue(user.check_password('NewStrongPassword123!'))

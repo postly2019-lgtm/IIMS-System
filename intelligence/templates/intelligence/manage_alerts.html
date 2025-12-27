@@ -1,0 +1,102 @@
+{% extends 'intelligence/base.html' %}
+{% load static %}
+
+{% block title %}إدارة التنبيهات الحرجة{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-red-500 border-r-4 border-red-500 pr-4">
+            <i class="fas fa-siren-on ml-2"></i> إدارة التنبيهات الأمنية الحرجة
+        </h1>
+    </div>
+
+    <!-- Alert Creation Form -->
+    <div class="bg-gray-800 rounded-lg shadow-lg p-6 mb-8 border border-red-900/30">
+        <h2 class="text-xl font-semibold text-white mb-4 flex items-center">
+            <i class="fas fa-plus-circle ml-2 text-green-400"></i> إضافة قاعدة تنبيه جديدة
+        </h2>
+        <form method="POST" action="{% url 'manage_alerts' %}">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Name -->
+                <div>
+                    <label class="block text-gray-400 text-sm font-bold mb-2">اسم التنبيه (الموضوع)</label>
+                    <input type="text" name="name" required placeholder="مثال: الأزمة اليمنية، تهديدات سيبرانية..." 
+                           class="w-full bg-gray-900 text-white border border-gray-700 rounded py-2 px-3 focus:outline-none focus:border-red-500 transition-colors">
+                </div>
+                
+                <!-- Region -->
+                <div>
+                    <label class="block text-gray-400 text-sm font-bold mb-2">المنطقة الجغرافية (اختياري)</label>
+                    <input type="text" name="region" placeholder="مثال: الشرق الأوسط، البحر الأحمر..." 
+                           class="w-full bg-gray-900 text-white border border-gray-700 rounded py-2 px-3 focus:outline-none focus:border-blue-500 transition-colors">
+                </div>
+
+                <!-- Keywords -->
+                <div class="md:col-span-2">
+                    <label class="block text-gray-400 text-sm font-bold mb-2">الكلمات المفتاحية (للرصد والتحليل)</label>
+                    <input type="text" name="keywords" required placeholder="افصل بين الكلمات بفاصلة. مثال: صاروخ, هجوم, الحوثي, تسليح" 
+                           class="w-full bg-gray-900 text-white border border-gray-700 rounded py-2 px-3 focus:outline-none focus:border-yellow-500 transition-colors">
+                    <p class="text-xs text-gray-500 mt-1">سيقوم النظام بتحليل التقارير الواردة بحثاً عن هذه الكلمات ومطابقة مستوى الخطورة.</p>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end">
+                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded shadow-lg transform hover:scale-105 transition-all">
+                    <i class="fas fa-shield-check ml-2"></i> تفعيل المراقبة
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Active Alerts List -->
+    <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4 flex items-center">
+            <i class="fas fa-radar ml-2 text-blue-400"></i> قواعد المراقبة النشطة
+        </h2>
+        
+        {% if rules %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-gray-300">
+                <thead class="text-gray-400 border-b border-gray-700 bg-gray-900">
+                    <tr>
+                        <th class="py-3 px-4">اسم التنبيه</th>
+                        <th class="py-3 px-4">المنطقة</th>
+                        <th class="py-3 px-4">الكلمات المفتاحية</th>
+                        <th class="py-3 px-4">مستوى الخطورة</th>
+                        <th class="py-3 px-4">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700">
+                    {% for rule in rules %}
+                    <tr class="hover:bg-gray-700/50 transition-colors">
+                        <td class="py-3 px-4 font-bold text-white">{{ rule.name }}</td>
+                        <td class="py-3 px-4">{{ rule.region|default:"-" }}</td>
+                        <td class="py-3 px-4">
+                            {% for keyword in rule.keywords.split|slice:":3" %}
+                                <span class="bg-gray-700 text-xs px-2 py-1 rounded ml-1">{{ keyword }}</span>
+                            {% endfor %}
+                        </td>
+                        <td class="py-3 px-4">
+                            <span class="text-red-400 font-mono"><i class="fas fa-exclamation-triangle"></i> {{ rule.get_severity_level_display }}</span>
+                        </td>
+                        <td class="py-3 px-4">
+                            <a href="{% url 'delete_alert_rule' rule.id %}" class="text-red-500 hover:text-red-400" onclick="return confirm('هل أنت متأكد من إيقاف هذا التنبيه؟')">
+                                <i class="fas fa-trash-alt"></i> إيقاف
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-10 text-gray-500">
+            <i class="fas fa-check-circle text-4xl mb-4 text-green-500/20"></i>
+            <p>لا توجد قواعد تنبيه نشطة حالياً.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

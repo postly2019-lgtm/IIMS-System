@@ -23,11 +23,14 @@ def graph_data_api(request):
     
     for report in reports:
         # Report Node
+        # Use translated title if available
+        display_title = report.translated_title if report.translated_title else report.title
+        
         if f"rep_{report.id}" not in added_nodes:
             nodes.append({
                 'id': f"rep_{report.id}",
-                'label': report.title[:20] + "...",
-                'fullLabel': report.title,
+                'label': display_title[:20] + "...",
+                'fullLabel': display_title,
                 'group': 'report',
                 'classification': report.classification,
                 'value': 20 # Size

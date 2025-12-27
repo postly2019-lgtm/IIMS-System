@@ -4,7 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>النظام الأمني لجمع المعلومات</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Sovereign Style Handling -->
+    {% load static %}
+    {% if debug %}
+        <!-- Development Mode: Use CDN for rapid iteration -->
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        colors: {
+                            primary: '#22d3ee',
+                            accent: '#10b981',
+                        }
+                    }
+                }
+            }
+        </script>
+    {% else %}
+        <!-- Production Mode: Use Sovereign Local Build -->
+        <link href="{% static 'css/output.css' %}" rel="stylesheet">
+    {% endif %}
+
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -23,6 +45,23 @@
             margin: 0;
             padding: 0;
             overflow-x: hidden;
+        }
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+        .animate-shake {
+            animation: shake 0.5s;
+            animation-iteration-count: 3;
         }
         .glass-panel {
             background: var(--panel);
@@ -83,6 +122,11 @@
             <a href="{% url 'search' %}" class="flex items-center gap-4 px-4 py-3 rounded-lg transition hover:bg-white/5 group border border-transparent hover:border-white/10" style="color: var(--text);">
                 <span class="text-xl opacity-70 group-hover:opacity-100 group-hover:text-cyan-400">🔍</span>
                 <span class="font-bold text-sm">بحث متقدم</span>
+            </a>
+
+            <a href="{% url 'favorites_list' %}" class="flex items-center gap-4 px-4 py-3 rounded-lg transition hover:bg-white/5 group border border-transparent hover:border-white/10" style="color: var(--text);">
+                <span class="text-xl opacity-70 group-hover:opacity-100 group-hover:text-yellow-400">⭐</span>
+                <span class="font-bold text-sm">المفضلة</span>
             </a>
 
             <a href="{% url 'agent_chat_root' %}" class="flex items-center gap-4 px-4 py-3 rounded-lg transition hover:bg-white/5 group border border-transparent hover:border-white/10 relative overflow-hidden">
@@ -168,7 +212,53 @@
     </aside>
 
     <!-- Main Content Area -->
-    <main id="main-content">
+    <main id="main-content" class="relative">
+        
+        <!-- SECURITY TICKER BAR (REMOVED) -->
+        <!-- User requested removal due to speed and annoyance -->
+
+        <!-- Top Header -->
+        <div class="flex justify-between items-center mb-8 sticky top-0 z-40 p-4 rounded-xl backdrop-blur-md bg-[#0b1220]/80 border-b border-white/5">
+            
+            <!-- Dynamic Page Title with Threat Level -->
+            <div class="flex items-center gap-4">
+                <h2 class="text-xl font-bold text-slate-400 flex items-center gap-2">
+                    {% block header_title %}{% endblock %}
+                </h2>
+                
+                <!-- THREAT LEVEL INDICATOR (DEFCON STYLE) -->
+                <div id="threat-level-bar" class="hidden flex items-center gap-1 bg-black/40 px-3 py-1 rounded border border-white/10">
+                    <span class="text-[10px] text-slate-500 font-mono uppercase">Threat Level:</span>
+                    <div class="flex gap-1">
+                        <div id="defcon-1" class="w-3 h-3 rounded-full bg-slate-800"></div>
+                        <div id="defcon-2" class="w-3 h-3 rounded-full bg-slate-800"></div>
+                        <div id="defcon-3" class="w-3 h-3 rounded-full bg-slate-800"></div>
+                    </div>
+                    <span id="threat-text" class="text-xs font-bold text-slate-400 ml-2">LOW</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-6">
+                <!-- Search Trigger -->
+                <button class="text-slate-400 hover:text-white transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </button>
+                
+                <!-- Notification Bell -->
+                <div class="relative cursor-pointer group" id="notif-btn" onclick="toggleNotifPanel()">
+                    <span class="text-2xl opacity-70 group-hover:opacity-100 transition">🔔</span>
+                    <span id="notif-badge" class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full text-[10px] flex items-center justify-center hidden shadow-lg shadow-red-500/50">0</span>
+                </div>
+
+                <!-- User Avatar (Mini) -->
+                {% if request.user.is_authenticated %}
+                <div class="w-8 h-8 rounded-full bg-cyan-900/50 border border-cyan-500/30 flex items-center justify-center text-[10px] font-bold text-cyan-200">
+                    {{ request.user.username|slice:":2"|upper }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- Flash Messages -->
         {% if messages %}
         <div class="mb-8 space-y-2 max-w-4xl mx-auto">
@@ -184,6 +274,161 @@
         {% block content %}
         {% endblock %}
     </main>
+
+    <script>
+        function checkNotifications() {
+            fetch('{% url "check_notifications" %}')
+                .then(r => r.json())
+                .then(data => {
+                    const badge = document.getElementById('notif-badge');
+                    
+                    // Update Ticker & Threat Level based on data
+                    // Assuming API returns critical_count or similar, if not we infer from notifications
+                    // For now, let's look at the notifications array to find criticals
+                    
+                    const criticals = data.notifications.filter(n => n.level === 'CRITICAL');
+                    updateSecurityStatus(criticals);
+
+                    if (data.status === 'alert' && data.count > 0) {
+                        if (badge) {
+                            badge.innerText = data.count;
+                            badge.classList.remove('hidden');
+                        }
+                        
+                        // Show Toast for the latest notification if it's new
+                        const latest = data.notifications[0];
+                        if (!document.getElementById('toast-' + latest.id)) {
+                             showToast(latest.id, latest.title, latest.message, latest.level, latest.report_id);
+                        }
+                    } else {
+                        if (data.count === 0 && badge) badge.classList.add('hidden');
+                    }
+                })
+                .catch(e => console.error("Polling error:", e));
+        }
+
+        function updateSecurityStatus(criticals) {
+            const threatBar = document.getElementById('threat-level-bar');
+            const threatText = document.getElementById('threat-text');
+            const d1 = document.getElementById('defcon-1');
+            const d2 = document.getElementById('defcon-2');
+            const d3 = document.getElementById('defcon-3');
+
+            if (criticals.length > 0) {
+                // HIGH THREAT
+                if (threatBar) threatBar.classList.remove('hidden');
+                if (threatText) {
+                    threatText.innerText = "CRITICAL";
+                    threatText.className = "text-xs font-bold text-red-500 ml-2 animate-pulse";
+                }
+                if (d1) d1.className = "w-3 h-3 rounded-full bg-red-600 shadow-[0_0_10px_red]";
+                if (d2) d2.className = "w-3 h-3 rounded-full bg-red-600 shadow-[0_0_10px_red]";
+                if (d3) d3.className = "w-3 h-3 rounded-full bg-red-600 shadow-[0_0_10px_red]";
+            } else {
+                // NORMAL
+                if (threatBar) threatBar.classList.remove('hidden');
+                if (threatText) {
+                    threatText.innerText = "NORMAL";
+                    threatText.className = "text-xs font-bold text-emerald-500 ml-2";
+                }
+                if (d1) d1.className = "w-3 h-3 rounded-full bg-emerald-600";
+                if (d2) d2.className = "w-3 h-3 rounded-full bg-slate-800";
+                if (d3) d3.className = "w-3 h-3 rounded-full bg-slate-800";
+            }
+        }
+    
+        setInterval(checkNotifications, 10000); // Poll every 10s for demo
+        checkNotifications(); // Initial check
+        
+        function showToast(id, title, msg, type, report_id) {
+            // Modern "Sovereign Capsule" Design (Non-intrusive, High-Tech)
+            const existing = document.getElementById('toast-' + id);
+            if (existing) return;
+
+            const toast = document.createElement('div');
+            toast.id = 'toast-' + id;
+            
+            // Base Capsule Style
+            // Top-centered, rounded-full, backdrop blur, glowing border
+            toast.className = `fixed top-8 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-500 ease-out translate-y-[-100px] opacity-0`;
+            
+            // Inner Content
+            // We use a group to handle hover/expansion
+            // Initial state: Compact Capsule
+            const isCritical = type === 'CRITICAL';
+            const borderColor = isCritical ? 'border-red-500/50' : 'border-blue-500/50';
+            const glowColor = isCritical ? 'shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'shadow-[0_0_20px_rgba(59,130,246,0.3)]';
+            const icon = isCritical ? '🚨' : 'ℹ️';
+            
+            toast.innerHTML = `
+                <div class="relative group bg-[#0b1220]/90 backdrop-blur-xl border ${borderColor} ${glowColor} rounded-full px-5 py-2.5 flex items-center gap-4 hover:rounded-2xl hover:px-6 hover:py-4 transition-all duration-300 cursor-default min-w-[320px] max-w-[500px]">
+                    
+                    <!-- Icon Pulse -->
+                    <div class="relative shrink-0">
+                        <span class="text-xl">${icon}</span>
+                        ${isCritical ? '<span class="absolute inset-0 rounded-full bg-red-500/20 animate-ping"></span>' : ''}
+                    </div>
+
+                    <!-- Content Container -->
+                    <div class="flex-1 flex flex-col justify-center">
+                        <!-- Compact View (Title Only) -->
+                        <div class="flex justify-between items-center w-full">
+                            <span class="font-bold text-sm text-white tracking-wide truncate max-w-[200px] group-hover:max-w-none transition-all">${title}</span>
+                            <span class="text-[10px] opacity-50 ml-2 font-mono whitespace-nowrap">${new Date().toLocaleTimeString('ar-SA')}</span>
+                        </div>
+                        
+                        <!-- Expanded View (Message + Actions) - Hidden by default, visible on hover -->
+                        <div class="hidden group-hover:block mt-2 pt-2 border-t border-white/10 animate-fade-in">
+                            <p class="text-xs text-slate-300 leading-relaxed mb-3">${msg}</p>
+                            <div class="flex justify-end gap-2">
+                                <button onclick="markRead(${id}, this)" class="px-3 py-1 text-[10px] rounded hover:bg-white/10 text-slate-400 transition">تجاهل</button>
+                                ${report_id ? `<a href="/intelligence/alerts/analysis/${report_id}/" class="px-3 py-1 text-[10px] rounded bg-red-600 hover:bg-red-500 text-white font-bold shadow-lg shadow-red-900/50 transition flex items-center gap-1">عرض التحليل <span class="text-[9px]">↗</span></a>` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Close Button (Visible on hover) -->
+                    <button onclick="markRead(${id}, this)" class="absolute -top-1 -left-1 bg-slate-800 rounded-full p-1 opacity-0 group-hover:opacity-100 transition shadow border border-white/10">
+                        <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Animate In
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-[-100px]', 'opacity-0');
+            });
+            
+            // Auto-dismiss for non-critical after 5s
+            if (!isCritical) {
+                setTimeout(() => {
+                    if (document.body.contains(toast)) {
+                        markRead(id, null); // Just mark read or just remove? Better remove UI only.
+                        // Actually, let's just fade it out without marking read via API if user didn't interact
+                        toast.classList.add('translate-y-[-100px]', 'opacity-0');
+                        setTimeout(() => toast.remove(), 500);
+                    }
+                }, 8000);
+            }
+        }
+
+        function markRead(id, btn) {
+            fetch(`/intelligence/api/notifications/${id}/read/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            }).then(() => {
+                if(btn) {
+                    const toast = btn.closest('div[id^="toast-"]');
+                    if(toast) toast.remove();
+                }
+                checkNotifications(); // Update badge
+            });
+        }
+    </script>
 
 </body>
 </html>

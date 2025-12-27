@@ -124,32 +124,36 @@ def qr_login_view(request):
 
 def password_reset_request_view(request):
     if request.method == 'POST':
-        username_or_job = request.POST.get('username_or_job')
+        job_number = request.POST.get('job_number')
+        national_id = request.POST.get('national_id')
+        email = request.POST.get('email')
+        new_password = request.POST.get('new_password')
+        
         User = get_user_model()
-        user = None
         
-        # Try to find user
         try:
-            user = User.objects.get(username=username_or_job)
-        except User.DoesNotExist:
-            try:
-                user = User.objects.get(job_number=username_or_job)
-            except User.DoesNotExist:
-                pass
-        
-        if user:
-            # Log the request
-            UserActionLog.objects.create(
-                user=user,
-                action=UserActionLog.ActionType.OTHER,
-                target_object="Password Reset Request",
-                details=f"User {user.username} requested password reset.",
-                ip_address=request.META.get('REMOTE_ADDR')
-            )
-            messages.success(request, "تم استلام طلبك. يرجى مراجعة مسؤول النظام لإعادة تعيين كلمة المرور.")
-        else:
-            messages.error(request, "بيانات المستخدم غير صحيحة.")
+            user = User.objects.get(job_number=job_number, national_id=national_id, email=email)
             
-        return redirect('login')
-        
-    return render(request, 'core/password_reset_request.html')
+            if new_password:
+                user.set_password(new_password)
+                user.save()
+                
+                # Log action
+                UserActionLog.objects.create(
+                    user=user,
+                    action=UserActionLog.ActionType.OTHER,
+                    target_object="Password Reset",
+                    details="User successfully reset password via self-service recovery.",
+                    ip_address=request.META.get('REMOTE_ADDR')
+                )
+                
+                messages.success(request, "تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول.")
+                return render(request, 'core/password_reset_recovery.html', {'success': "تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول."})
+            else:
+                return render(request, 'core/password_reset_recovery.html', {'error': "يرجى إدخال كلمة المرور الجديدة."})
+                
+        except User.DoesNotExist:
+            # Log failed attempt (generic user if possible, or just skip)
+            return render(request, 'core/password_reset_recovery.html', {'error': "البيانات المدخلة غير صحيحة أو غير متطابقة."})
+            
+    return render(request, 'core/password_reset_recovery.html')

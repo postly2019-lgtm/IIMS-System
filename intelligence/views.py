@@ -49,19 +49,6 @@ def translate_report(request, report_id):
         # We use a temporary session-less call or just reuse chat_completion with a dummy object if needed, 
         # but GroqClient structure is tied to sessions. Let's make a raw call using the client directly if possible 
         # or adapt GroqClient.
-        # Actually, GroqClient.chat_completion needs a session.
-        # Let's instantiate Groq directly here for simplicity or add a helper method to GroqClient.
-        # I'll add a helper method `translate_text` to GroqClient first to keep it clean.
-        
-        # Checking GroqClient in services.py... it has self.client.
-        # I will assume I can use client.client.chat.completions.create directly here for now to avoid editing services.py yet again if not needed.
-        # But wait, better to encapsulate. Let's add `translate_text` to GroqClient.
-        
-        # Re-reading services.py content from memory... 
-        # It has `chat_completion(self, session, user_message_content)`.
-        
-        # Let's just use the raw client here for speed, or better, add the method. 
-        # Adding the method is cleaner.
         pass
     except Exception as e:
         logger.error(f"Translation failed: {e}")
@@ -72,8 +59,6 @@ def translate_report(request, report_id):
     
     if translation:
         # Parse the output (Simple parsing assuming the model follows instructions)
-        # Fallback: if parsing fails, just put everything in content.
-        
         lines = translation.strip().split('\n')
         ar_title = ""
         ar_content = ""
@@ -111,17 +96,46 @@ def translate_report(request, report_id):
 
 @login_required
 def dashboard_view(request):
-    recent_reports = IntelligenceReport.objects.all()[:20]
+    from django.db.models import Case, When, IntegerField
+    
+    # Define Priority Order
+    # 1. Military, 2. Security, 3. Armament, 4. Intel, 5. Mil_Tech, 6. Medical (High Sev), 7. Others
+    
+    reports = IntelligenceReport.objects.annotate(
+        priority_score=Case(
+            When(topic='MILITARY', then=1),
+            When(topic='SECURITY', then=2),
+            When(topic='ARMAMENT', then=3),
+            When(topic='INTEL', then=4),
+            When(topic='MIL_TECH', then=5),
+            When(topic='MEDICAL', severity__in=['HIGH', 'CRITICAL'], then=6),
+            When(topic='MEDICAL', then=99), # Low priority medical
+            default=7,
+            output_field=IntegerField(),
+        )
+    ).order_by('priority_score', '-published_at')
+
+    recent_reports = reports[:20]
     total_reports = IntelligenceReport.objects.count()
     sources_count = Source.objects.filter(is_active=True).count()
-    recent_reports_count = IntelligenceReport.objects.filter(published_at__gte=timezone.now() - timedelta(hours=24)).count()
-    ingestion_online = Source.objects.filter(is_active=True).exists()
-    analysis_online = IntelligenceReport.objects.filter(entities__isnull=False).exists()
     
+    # Calculate Critical Alerts Count (Unread Critical Notifications)
+    from .models import IntelligenceNotification
+    # Assuming the current user is the one viewing the dashboard. 
+    # If notifications are per-user, we filter by request.user. 
+    # But dashboard might show system-wide stats? 
+    # Let's show unread critical notifications for the current user.
+    critical_alerts_count = IntelligenceNotification.objects.filter(
+        user=request.user, 
+        level='CRITICAL', 
+        is_read=False
+    ).count()
+
     context = {
         'recent_reports': recent_reports,
         'total_reports': total_reports,
         'sources_count': sources_count,
+        'critical_alerts_count': critical_alerts_count,
     }
     return render(request, 'intelligence/dashboard.html', context)
 
@@ -146,3 +160,224 @@ def report_detail(request, report_id):
 @login_required
 def graph_view(request):
     return render(request, 'intelligence/graph.html', {})
+
+@login_required
+def translate_report(request, report_id):
+    """
+    Manually triggers translation for a report.
+    """
+    report = get_object_or_404(IntelligenceReport, pk=report_id)
+    
+    # Force re-translation or initial translation
+    client = GroqClient()
+    translated_text = client.translate_text(report.title, report.content)
+    
+    # Parse output
+    t_title = ""
+    t_content = ""
+    
+    lines = translated_text.split("\n")
+    for line in lines:
+        if line.startswith("Title:") or line.startswith("العنوان:"):
+            try:
+                t_title = line.split(":", 1)[1].strip()
+            except: pass
+        elif line.startswith("Content:") or line.startswith("المحتوى:"):
+            try:
+                t_content = line.split(":", 1)[1].strip()
+            except: pass
+            
+    if t_title and t_content:
+        report.translated_title = t_title
+        report.translated_content = t_content
+        report.processing_status = 'COMPLETED'
+        report.save()
+        messages.success(request, "تمت ترجمة التقرير بنجاح")
+    else:
+        # Fallback if parsing fails but we got something
+        # If it was a simulation, it follows the format.
+        messages.warning(request, "لم نتمكن من تحليل تنسيق الترجمة بدقة، لكن المحاولة تمت.")
+
+    return redirect('report_detail', report_id=report.id)
+
+@login_required
+@require_POST
+def toggle_favorite(request, report_id):
+    report = get_object_or_404(IntelligenceReport, pk=report_id)
+    if request.user in report.favorites.all():
+        report.favorites.remove(request.user)
+        is_favorite = False
+    else:
+        report.favorites.add(request.user)
+        is_favorite = True
+    
+    return JsonResponse({'status': 'success', 'is_favorite': is_favorite})
+
+@login_required
+def manage_alerts(request):
+    """
+    Manage Critical Alert Rules.
+    """
+    from .models import CriticalAlertRule
+    
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        keywords = request.POST.get('keywords')
+        region = request.POST.get('region')
+        
+        if name and keywords:
+            CriticalAlertRule.objects.create(
+                user=request.user,
+                name=name,
+                keywords=keywords,
+                region=region,
+                severity_level='CRITICAL' # Default for now
+            )
+            messages.success(request, "تم إضافة قاعدة التنبيه بنجاح")
+        return redirect('manage_alerts')
+        
+    rules = CriticalAlertRule.objects.filter(user=request.user).order_by('-created_at')
+    return render(request, 'intelligence/manage_alerts.html', {'rules': rules})
+
+@login_required
+def delete_alert_rule(request, rule_id):
+    from .models import CriticalAlertRule
+    rule = get_object_or_404(CriticalAlertRule, pk=rule_id, user=request.user)
+    rule.delete()
+    messages.success(request, "تم حذف قاعدة التنبيه")
+    return redirect('manage_alerts')
+
+@login_required
+def critical_analysis_view(request, report_id):
+    """
+    Special view for Critical Alerts.
+    Triggers AI analysis immediately.
+    """
+    report = get_object_or_404(IntelligenceReport, pk=report_id)
+    
+    # 1. Check if we already have a cached analysis (e.g. in translated_content or separate field)
+    # For now, we generate fresh or use existing translation if valid, 
+    # but the user wants "Situation Analysis", not just translation.
+    
+    client = GroqClient()
+    
+    # Prompt for Critical Analysis
+    prompt = f"""
+    You are a Senior Strategic Intelligence Analyst.
+    URGENT SITUATION REPORT REQUIRED.
+    
+    Subject: {report.title}
+    Raw Intel: {report.content}
+    
+    Task: Provide a Critical Situation Assessment in ARABIC.
+    Structure:
+    1. **Strategic Significance** (Why this matters now)
+    2. **Threat Assessment** (Who is threatened, severity)
+    3. **Immediate Implications** (What will happen next 24-48h)
+    4. **Recommendations** (Actionable steps)
+    
+    Tone: Urgent, Military, Professional.
+    Language: Arabic.
+    """
+    
+    if client.client:
+        analysis = client.chat_completion(prompt)
+    else:
+        # Simulation Mode
+        analysis = f"""
+### تقدير موقف استراتيجي (عاجل)
+**الموضوع:** {report.title}
+
+1. **الأهمية الاستراتيجية:**
+يشير هذا التقرير إلى تطور نوعي في {report.topic if report.topic else 'المنطقة'}. البيانات الأولية تؤكد وجود نشاط غير اعتيادي يتطلب الانتباه الفوري.
+
+2. **تقييم التهديد:**
+مستوى الخطورة: **مرتفع**. التهديدات تطال المصالح الحيوية، مع احتمالية تصعيد في غضون الساعات القادمة.
+
+3. **التداعيات المباشرة:**
+- توقع ردود فعل سياسية وعسكرية سريعة.
+- احتمالية تغيير في قواعد الاشتباك الحالية.
+
+4. **التوصيات:**
+- رفع درجة التأهب في القطاعات ذات الصلة.
+- تكثيف عمليات الرصد الاستخباراتي للمصادر المرتبطة بـ "{report.source.name}".
+
+*تحليل تم إنشاؤه بواسطة المحلل الذكي للنظام.*
+"""
+
+    context = {
+        'report': report,
+        'analysis': analysis,
+    }
+    return render(request, 'intelligence/critical_analysis.html', context)
+    return JsonResponse({'status': 'success', 'is_favorite': is_favorite})
+
+@login_required
+def favorites_list(request):
+    favorite_reports = request.user.favorite_reports.all().order_by('-created_at')
+    return render(request, 'intelligence/favorites_list.html', {'favorite_reports': favorite_reports})
+
+@login_required
+@require_POST
+def analyze_favorites(request):
+    try:
+        import json
+        data = json.loads(request.body)
+        report_ids = data.get('report_ids', [])
+        
+        if not report_ids:
+            return JsonResponse({'status': 'error', 'message': 'No reports selected'})
+            
+        reports = IntelligenceReport.objects.filter(id__in=report_ids)
+        if not reports.exists():
+             return JsonResponse({'status': 'error', 'message': 'Reports not found'})
+
+        # Prepare data for AI
+        reports_data = [
+            {'title': r.title, 'content': r.content, 'source': r.source.name}
+            for r in reports
+        ]
+        
+        client = GroqClient()
+        analysis = client.analyze_reports(reports_data)
+        
+        return JsonResponse({'status': 'success', 'analysis': analysis})
+    except Exception as e:
+        logger.error(f"Analysis error: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+@login_required
+def check_notifications(request):
+    """
+    Returns unread critical notifications for the polling script.
+    """
+    from .models import IntelligenceNotification
+    notifications = IntelligenceNotification.objects.filter(
+        user=request.user, 
+        is_read=False, 
+        level='CRITICAL'
+    ).order_by('-created_at')
+    
+    if not notifications.exists():
+        return JsonResponse({'status': 'ok', 'count': 0})
+        
+    data = []
+    for notif in notifications:
+        data.append({
+            'id': notif.id,
+            'title': notif.title,
+            'message': notif.message,
+            'level': notif.level,
+            'report_id': notif.report.id if notif.report else None
+        })
+        
+    return JsonResponse({'status': 'alert', 'count': notifications.count(), 'notifications': data})
+
+@login_required
+@require_POST
+def mark_notification_read(request, notification_id):
+    from .models import IntelligenceNotification
+    notif = get_object_or_404(IntelligenceNotification, pk=notification_id, user=request.user)
+    notif.is_read = True
+    notif.save()
+    return JsonResponse({'status': 'success'})

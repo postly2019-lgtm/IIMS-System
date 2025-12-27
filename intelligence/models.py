@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from django.conf import settings
+
 class Source(models.Model):
     class SourceType(models.TextChoices):
         RSS = 'RSS', _('RSS Feed')
@@ -46,11 +48,38 @@ class IntelligenceReport(models.Model):
     # Analysis Fields
     credibility_score = models.IntegerField(_("درجة المصداقية"), default=0)
     sentiment_score = models.FloatField(_("تحليل المشاعر"), default=0.0) # -1.0 to 1.0
+    severity = models.CharField(_("درجة الخطورة"), max_length=10, choices=[
+        ('LOW', 'منخفض'),
+        ('MEDIUM', 'متوسط'),
+        ('HIGH', 'عالي'),
+        ('CRITICAL', 'حرج/طارئ')
+    ], default='LOW')
+    
+    class Topic(models.TextChoices):
+        MILITARY = 'MILITARY', _('عسكري وحربي')
+        SECURITY = 'SECURITY', _('أمني')
+        ARMAMENT = 'ARMAMENT', _('تسليح')
+        INTEL = 'INTEL', _('استخباراتي')
+        MIL_TECH = 'MIL_TECH', _('تكنولوجيا عسكرية')
+        MEDICAL = 'MEDICAL', _('طبي/أوبئة')
+        OTHER = 'OTHER', _('عام/أخرى')
+
+    topic = models.CharField(_("التصنيف الموضوعي"), max_length=20, choices=Topic.choices, default=Topic.OTHER)
+
     related_reports = models.ManyToManyField('self', blank=True, verbose_name=_("تقارير ذات صلة"))
 
     # Translation Fields
+    original_language = models.CharField(_("اللغة الأصلية"), max_length=10, default='en')
     translated_title = models.CharField(_("العنوان المترجم"), max_length=500, blank=True, null=True)
     translated_content = models.TextField(_("المحتوى المترجم"), blank=True, null=True)
+    processing_status = models.CharField(_("حالة المعالجة"), max_length=20, choices=[
+        ('PENDING', 'قيد المعالجة'),
+        ('COMPLETED', 'تمت المعالجة'),
+        ('FAILED', 'فشل المعالجة')
+    ], default='PENDING')
+
+    # User Interaction
+    favorites = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='favorite_reports', blank=True, verbose_name=_("المفضلة"))
 
     class Meta:
         verbose_name = _("تقرير استخباراتي")
@@ -77,3 +106,47 @@ class Entity(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.get_entity_type_display()})"
+
+class CriticalAlertRule(models.Model):
+    class Severity(models.TextChoices):
+        HIGH = 'HIGH', _('عالي')
+        CRITICAL = 'CRITICAL', _('حرج/طارئ')
+
+    name = models.CharField(_("اسم التنبيه"), max_length=200, help_text=_("مثال: الأزمة اليمنية، تسليح الحوثي"))
+    keywords = models.TextField(_("الكلمات المفتاحية"), help_text=_("افصل بين الكلمات بفاصلة. مثال: يمن, حوثي, صاروخ"))
+    region = models.CharField(_("المنطقة/الدولة"), max_length=100, blank=True)
+    severity_level = models.CharField(_("مستوى الخطورة المطلوب"), max_length=10, choices=Severity.choices, default=Severity.CRITICAL)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name=_("المستخدم"))
+    is_active = models.BooleanField(_("مفعل"), default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("قاعدة تنبيه حرج")
+        verbose_name_plural = _("قواعد التنبيهات الحرجة")
+
+    def __str__(self):
+        return self.name
+
+class IntelligenceNotification(models.Model):
+    """
+    Alerts for critical intelligence updates.
+    """
+    class Level(models.TextChoices):
+        INFO = 'INFO', _('معلومة')
+        WARNING = 'WARNING', _('تحذير')
+        CRITICAL = 'CRITICAL', _('خطر/حرج')
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
+    title = models.CharField(_("العنوان"), max_length=255)
+    message = models.TextField(_("الرسالة"))
+    level = models.CharField(_("المستوى"), max_length=10, choices=Level.choices, default=Level.INFO)
+    is_read = models.BooleanField(_("تمت القراءة"), default=False)
+    report = models.ForeignKey(IntelligenceReport, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
+    alert_rule = models.ForeignKey(CriticalAlertRule, on_delete=models.SET_NULL, null=True, blank=True, verbose_name=_("قاعدة التنبيه"))
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.level} - {self.title}"

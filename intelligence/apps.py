@@ -44,4 +44,5 @@ class IntelligenceConfig(AppConfig):
     name = 'intelligence'
 
     def ready(self):
+        import intelligence.signals  # Register signals
         post_migrate.connect(seed_data_on_migrate, sender=self)

@@ -47,16 +47,9 @@ def create_new_session(request):
     if report_id:
         report = get_object_or_404(IntelligenceReport, pk=report_id)
         
-        # System/User Context Injection
-        user_content = f"""أريد تحليلاً استخباراتياً للتقرير التالي:
+        # System/User Context Injection - Natural Language
+        user_content = f"قم بتحليل التقرير التالي: '{report.title}'"
         
-العنوان: {report.title}
-المصدر: {report.source.name}
-التاريخ: {report.published_at}
-
-المحتوى:
-{report.content}
-"""
         # Save User Message
         AgentMessage.objects.create(
             session=session,
@@ -66,14 +59,30 @@ def create_new_session(request):
         
         # Trigger AI Response immediately
         client = GroqClient()
-        if client.client:
-            ai_response = client.chat_completion(session, user_content)
-            
-            AgentMessage.objects.create(
-                session=session,
-                role=AgentMessage.Role.ASSISTANT,
-                content=ai_response
-            )
+        
+        # Add the report content as invisible system context or just part of the prompt
+        # We append it to the user content for the AI to see, but maybe we don't need to save the HUGE text in the user message DB if we want to keep chat clean.
+        # However, for RAG, it's better to have it.
+        # Let's send the full content to the AI but only show the summary to the user? 
+        # No, simpler is better. Send full content to AI.
+        
+        full_prompt = f"""{user_content}
+        
+[سياق التقرير]:
+العنوان: {report.title}
+المصدر: {report.source.name}
+التاريخ: {report.published_at}
+النص الكامل:
+{report.content}
+"""
+        # Always attempt completion
+        ai_response = client.chat_completion(session, full_prompt)
+        
+        AgentMessage.objects.create(
+            session=session,
+            role=AgentMessage.Role.ASSISTANT,
+            content=ai_response
+        )
 
     return redirect('agent_chat', session_id=session.id)
 
@@ -115,13 +124,27 @@ def send_message(request, session_id):
                 file_content = attachment.read().decode('utf-8', errors='ignore')
                 ai_context_content += f"\n\n[System: User uploaded file '{attachment.name}'. Content:]\n{file_content}\n[End of file]"
             elif attachment.name.endswith('.pdf'):
-                # TODO: Implement PDF parsing using pypdf.
-                # Requires: pip install pypdf
-                # import pypdf
-                # reader = pypdf.PdfReader(attachment)
-                # text = ""
-                # for page in reader.pages: text += page.extract_text()
-                ai_context_content += f"\n\n[System: User uploaded PDF '{attachment.name}'. PDF parsing requires 'pypdf' library installation. Notify the user.]"
+                try:
+                    import pypdf
+                    # Reset pointer just in case, though usually at 0 for fresh upload
+                    if hasattr(attachment, 'seek'):
+                        attachment.seek(0)
+                    
+                    reader = pypdf.PdfReader(attachment)
+                    text = ""
+                    for page in reader.pages:
+                        extracted = page.extract_text()
+                        if extracted:
+                            text += extracted + "\n"
+                    
+                    if not text.strip():
+                        text = "[PDF contains no extractable text - might be an image scan]"
+
+                    ai_context_content += f"\n\n[System: User uploaded PDF '{attachment.name}'. Content extracted below:]\n{text}\n[End of PDF]"
+                except ImportError:
+                    ai_context_content += f"\n\n[System: User uploaded PDF '{attachment.name}'. Error: pypdf library not installed on server.]"
+                except Exception as e:
+                    ai_context_content += f"\n\n[System: User uploaded PDF '{attachment.name}'. Error parsing PDF: {str(e)}]"
             else:
                 ai_context_content += f"\n\n[System: User uploaded file '{attachment.name}'. File content analysis not fully supported yet, but acknowledge receipt.]"
         except Exception as e:

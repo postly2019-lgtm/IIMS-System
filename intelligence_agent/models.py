@@ -87,6 +87,24 @@ class AgentSession(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     last_interaction = models.DateTimeField(auto_now=True)
 
+    def get_context(self):
+        """
+        Constructs the message history for the LLM.
+        Includes the active system prompt.
+        """
+        # Get System Prompt
+        instruction = AgentInstruction.objects.filter(is_active=True).first()
+        system_prompt = instruction.system_prompt if instruction else "You are a helpful intelligence analyst."
+
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        for msg in self.messages.all().order_by('created_at'):
+            role = msg.role
+            # Ensure role compatibility if needed, but our choices match standard API roles
+            messages.append({"role": role, "content": msg.content})
+            
+        return messages
+
     def __str__(self):
         return f"{self.user.username} - {self.created_at.strftime('%Y-%m-%d')}"
 
@@ -110,3 +128,6 @@ class AgentMessage(models.Model):
 
     class Meta:
         ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.role}: {self.content[:50]}"

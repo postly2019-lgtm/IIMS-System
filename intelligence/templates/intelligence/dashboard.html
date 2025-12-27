@@ -13,7 +13,7 @@
         </div>
         <div class="glass-panel p-6">
             <h3 class="text-sm mb-2" style="color: var(--muted)">تنبيهات حرجة</h3>
-            <p class="text-3xl font-bold text-red-500">0</p>
+            <p class="text-3xl font-bold text-red-500">{{ critical_alerts_count }}</p>
         </div>
         <div class="glass-panel p-6">
             <h3 class="text-sm mb-2" style="color: var(--muted)">حالة النظام</h3>
@@ -31,25 +31,57 @@
                 أحدث البرقيات الواردة
             </h2>
 
+            <!-- Quick Agent Access -->
+            <div class="mb-4">
+                <a href="{% url 'agent_chat_root' %}" class="w-full bg-slate-800 hover:bg-slate-700 text-white p-3 rounded flex justify-between items-center transition-colors border border-slate-700">
+                    <span class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+                        <span>فتح المحلل الذكي (Smart Analyst)</span>
+                    </span>
+                    <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">جلسة جديدة</span>
+                </a>
+            </div>
+
             <div class="space-y-4">
                 {% for report in recent_reports %}
-                <div onclick="window.location.href='{% url 'report_detail' report.id %}'" class="p-4 rounded-lg border transition cursor-pointer" style="background-color: rgba(13,19,32,0.6); border-color: var(--border)">
+                <div onclick="window.location.href='{% url 'report_detail' report.id %}'" class="p-4 rounded-lg border transition cursor-pointer relative group" style="background-color: rgba(13,19,32,0.6); border-color: var(--border)">
+                    <!-- Quick Actions -->
+                    <div class="absolute top-4 left-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button onclick="event.stopPropagation(); toggleFavorite({{ report.id }})" class="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-yellow-400" title="إضافة للمفضلة">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        </button>
+                    </div>
+
                     <div class="flex justify-between items-start mb-2">
                         <span class="text-xs font-mono" style="color: var(--primary)">{{ report.source.name }}</span>
                         <div class="flex items-center gap-2">
                             <!-- Translate Shortcut -->
                             {% if not report.translated_title %}
-                            <a href="{% url 'report_detail' report.id %}#translate" onclick="event.stopPropagation()" class="text-slate-400 hover:text-white transition p-1 hover:bg-slate-700 rounded" title="ترجمة فورية">
+                            <a href="{% url 'translate_report' report.id %}" onclick="event.stopPropagation()" class="text-slate-400 hover:text-white transition p-1 hover:bg-slate-700 rounded" title="ترجمة فورية">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg>
                             </a>
                             {% endif %}
                             <span class="text-[10px] px-2 py-0.5 rounded status-badge-{{ report.classification }} font-bold">
                                 {{ report.get_classification_display }}
                             </span>
+                            {% if report.processing_status == 'PENDING' and not report.translated_title %}
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 font-bold flex items-center gap-1">
+                                <svg class="animate-spin h-3 w-3 text-yellow-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                جاري المعالجة
+                            </span>
+                            {% endif %}
                         </div>
                     </div>
-                    <h3 class="text-lg font-bold mb-2">{{ report.title }}</h3>
-                    <p class="text-sm line-clamp-2" style="color: var(--muted)">{{ report.content }}</p>
+                    <h3 class="text-lg font-bold mb-2">
+                        {% if report.severity == 'CRITICAL' %}
+                        <span class="text-red-500 ml-1">🔴</span>
+                        {% endif %}
+                        {{ report.translated_title|default:report.title }}
+                    </h3>
+                    <p class="text-sm line-clamp-2" style="color: var(--muted)">{{ report.translated_content|default:report.content }}</p>
                     <div class="mt-3 flex justify-between items-center text-xs" style="color: var(--muted)">
                         <span>{{ report.published_at|date:"Y-m-d H:i" }}</span>
                         <span>الموثوقية: {{ report.credibility_score }}%</span>
@@ -70,14 +102,14 @@
                 <button class="w-full bg-slate-700 hover:bg-slate-600 text-right p-3 rounded flex justify-between items-center">
                     <span>تحليل الكيانات</span>
                     {% if analysis_online %}
-                    <span class="bg-green-500/20 text-green-400 px-2 rounded text-xs">ON</span>
+                    <span class="bg-green-500/20 text-green-400 px-2 rounded text-xs">نشط</span>
                     {% else %}
-                    <span class="bg-slate-900 px-2 rounded text-xs">OFF</span>
+                    <span class="bg-slate-900 px-2 rounded text-xs">متوقف</span>
                     {% endif %}
                 </button>
                 <button onclick="window.location.href='{% url 'graph_view' %}'" class="w-full bg-slate-700 hover:bg-slate-600 text-right p-3 rounded flex justify-between items-center transition-colors">
                     <span>الربط الشبكي</span>
-                    <span class="bg-green-500/20 text-green-400 px-2 rounded text-xs">ON</span>
+                    <span class="bg-green-500/20 text-green-400 px-2 rounded text-xs">نشط</span>
                 </button>
             </div>
 
@@ -85,15 +117,46 @@
                 <h3 class="text-sm text-slate-400 mb-2">حالة الخوادم</h3>
                 <div class="space-y-2">
                     <div class="flex justify-between text-xs">
-                        <span>Ingestion Node</span>
-                        <span class="text-green-400">Online</span>
+                        <span>خادم الاستيعاب</span>
+                        <span class="text-green-400">متصل</span>
                     </div>
                     <div class="flex justify-between text-xs">
-                        <span>Analysis Node</span>
-                        <span class="text-green-400">Online</span>
+                        <span>خادم التحليل</span>
+                        <span class="text-green-400">متصل</span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+    <script>
+        function toggleFavorite(reportId) {
+            // Construct URL dynamically to match Django's routing
+            const url = "{% url 'toggle_favorite' 0 %}".replace('0', reportId);
+            
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Visual feedback
+                    alert(data.is_favorite ? 'تمت الإضافة للمفضلة' : 'تمت الإزالة من المفضلة');
+                    // Optional: Update icon color immediately
+                } else {
+                    alert('خطأ في العملية');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('حدث خطأ أثناء الاتصال بالخادم');
+            });
+        }
+    </script>
 {% endblock %}

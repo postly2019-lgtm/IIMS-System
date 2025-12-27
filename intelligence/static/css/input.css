@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Sovereign Styles */
+.glass-panel {
+    @apply bg-[#131c2d]/75 backdrop-blur-md border border-[#1f2b44] rounded-2xl;
+}

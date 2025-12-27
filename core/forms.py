@@ -11,13 +11,14 @@ class UserForm(forms.ModelForm):
     
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'last_name', 'email', 'job_number', 'mobile_number', 'rank', 'role', 'photo', 'password']
+        fields = ['username', 'first_name', 'last_name', 'email', 'job_number', 'national_id', 'mobile_number', 'rank', 'role', 'photo', 'password']
         widgets = {
             'username': forms.TextInput(attrs={'class': 'bg-slate-800 border border-slate-600 text-white rounded p-2 w-full'}),
             'first_name': forms.TextInput(attrs={'class': 'bg-slate-800 border border-slate-600 text-white rounded p-2 w-full'}),
             'last_name': forms.TextInput(attrs={'class': 'bg-slate-800 border border-slate-600 text-white rounded p-2 w-full'}),
             'email': forms.EmailInput(attrs={'class': 'bg-slate-800 border border-slate-600 text-white rounded p-2 w-full'}),
             'job_number': forms.TextInput(attrs={'class': 'bg-slate-800 border border-slate-600 text-white rounded p-2 w-full'}),
+            'national_id': forms.TextInput(attrs={'class': 'bg-slate-800 border border-slate-600 text-white rounded p-2 w-full'}),
             'mobile_number': forms.TextInput(attrs={'class': 'bg-slate-800 border border-slate-600 text-white rounded p-2 w-full'}),
             'rank': forms.Select(attrs={'class': 'bg-slate-800 border border-slate-600 text-white rounded p-2 w-full'}),
             'role': forms.Select(attrs={'class': 'bg-slate-800 border border-slate-600 text-white rounded p-2 w-full'}),
