@@ -26,13 +26,16 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.azurewebsites.net', 
     'https://*.railway.app', 
     'https://*.up.railway.app',
-    'https://iims-system-production.up.railway.app'
+    'https://iims-system-production.up.railway.app',
+    'https://iims-system.up.railway.app'
 ]
 
 # Security Settings for Railway/Production
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = True # Prevent JS access to CSRF cookie
+CSRF_USE_SESSIONS = False # Use cookie-based token (Standard)
 
 
 # Application definition
