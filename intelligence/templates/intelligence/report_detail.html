@@ -65,6 +65,12 @@
                     {{ report.get_classification_display }}
                 </span>
                 <span class="text-sm text-blue-400 font-mono">{{ report.source.name }}</span>
+                
+                <!-- Translate Button -->
+                <button id="translate-btn" onclick="translateReport()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded text-xs font-bold transition flex items-center gap-1 {% if report.translated_title %}hidden{% endif %}">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg>
+                    ترجمة فورية
+                </button>
             </div>
             <h1 class="text-3xl font-bold text-white leading-relaxed">{{ report.title }}</h1>
         </div>
@@ -78,6 +84,16 @@
     <!-- Content -->
     <div class="prose prose-invert max-w-none mb-8 relative z-10">
         <p class="text-lg text-slate-200 leading-8">{{ report.content }}</p>
+    </div>
+
+    <!-- Translation Section (Conditional) -->
+    <div id="translated-section" class="{% if not report.translated_title %}hidden{% endif %} mb-8 p-6 bg-indigo-900/20 border border-indigo-500/30 rounded-lg relative z-10 animate-fade-in">
+        <h3 class="text-indigo-400 font-bold mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg>
+            الترجمة العربية (AI Translation)
+        </h3>
+        <h4 id="translated-title" class="text-xl font-bold text-white mb-4">{{ report.translated_title|default:"" }}</h4>
+        <p id="translated-content" class="text-slate-300 leading-8 whitespace-pre-wrap">{{ report.translated_content|default:"" }}</p>
     </div>
 
     <!-- Analysis Section -->
@@ -135,6 +151,10 @@
 
     <!-- Actions -->
     <div class="mt-8 pt-6 border-t border-slate-700 flex justify-end gap-4 no-print relative z-10">
+        <a href="{% url 'create_new_session' %}?report_id={{ report.id }}" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded text-sm font-bold transition flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+            تحليل المحلل الذكي
+        </a>
         <button onclick="window.print()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-sm font-bold transition flex items-center gap-2">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
             طباعة التقرير
@@ -145,4 +165,45 @@
     </div>
 
 </div>
+
+<script>
+    function translateReport() {
+        const btn = document.getElementById('translate-btn');
+        const section = document.getElementById('translated-section');
+        const titleEl = document.getElementById('translated-title');
+        const contentEl = document.getElementById('translated-content');
+        
+        // Loading State
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<svg class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> جاري الترجمة...';
+        btn.disabled = true;
+
+        fetch('{% url "translate_report" report.id %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                titleEl.textContent = data.title;
+                contentEl.textContent = data.content;
+                section.classList.remove('hidden');
+                btn.classList.add('hidden'); // Hide button after success
+            } else {
+                alert('Translation failed: ' + data.message);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred during translation.');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+    }
+</script>
 {% endblock %}

@@ -5,6 +5,7 @@ from django.views.decorators.http import require_POST
 from django.core.exceptions import PermissionDenied
 from .models import AgentSession, AgentMessage, AgentDocument, AgentInstruction
 from .services import GroqClient
+from intelligence.models import IntelligenceReport
 
 @login_required
 def agent_chat_view(request, session_id=None):
@@ -33,8 +34,47 @@ def agent_chat_view(request, session_id=None):
 
 @login_required
 def create_new_session(request):
-    """Creates a new empty session."""
-    session = AgentSession.objects.create(user=request.user, title="محادثة جديدة")
+    """Creates a new empty session, optionally initialized with a report context."""
+    report_id = request.GET.get('report_id')
+    initial_title = "محادثة جديدة"
+    
+    if report_id:
+        report = get_object_or_404(IntelligenceReport, pk=report_id)
+        initial_title = f"تحليل: {report.title[:30]}..."
+    
+    session = AgentSession.objects.create(user=request.user, title=initial_title)
+    
+    if report_id:
+        report = get_object_or_404(IntelligenceReport, pk=report_id)
+        
+        # System/User Context Injection
+        user_content = f"""أريد تحليلاً استخباراتياً للتقرير التالي:
+        
+العنوان: {report.title}
+المصدر: {report.source.name}
+التاريخ: {report.published_at}
+
+المحتوى:
+{report.content}
+"""
+        # Save User Message
+        AgentMessage.objects.create(
+            session=session,
+            role=AgentMessage.Role.USER,
+            content=user_content
+        )
+        
+        # Trigger AI Response immediately
+        client = GroqClient()
+        if client.client:
+            ai_response = client.chat_completion(session, user_content)
+            
+            AgentMessage.objects.create(
+                session=session,
+                role=AgentMessage.Role.ASSISTANT,
+                content=ai_response
+            )
+
     return redirect('agent_chat', session_id=session.id)
 
 @login_required

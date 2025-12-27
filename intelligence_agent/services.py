@@ -100,6 +100,37 @@ Credibility = (SourceReliability 40%) + (EvidenceQuality 30%) + (Corroboration 2
         
         return context_str
 
+    def translate_text(self, title, content):
+        """
+        Translates text to Arabic using the LLM.
+        """
+        if not self.client:
+            return None
+
+        prompt = f"""
+        Translate the following Intelligence Report into professional Arabic.
+        Maintain military and political terminology.
+        
+        Title: {title}
+        Content: {content}
+        
+        Output Format:
+        Title: [Arabic Title]
+        Content: [Arabic Content]
+        """
+
+        try:
+            completion = self.client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=2048,
+            )
+            return completion.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Translation Error: {e}")
+            return None
+
     def chat_completion(self, session, user_message_content):
         """
         Send message to Groq API and return the response.

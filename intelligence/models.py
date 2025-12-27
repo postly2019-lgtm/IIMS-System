@@ -48,6 +48,10 @@ class IntelligenceReport(models.Model):
     sentiment_score = models.FloatField(_("تحليل المشاعر"), default=0.0) # -1.0 to 1.0
     related_reports = models.ManyToManyField('self', blank=True, verbose_name=_("تقارير ذات صلة"))
 
+    # Translation Fields
+    translated_title = models.CharField(_("العنوان المترجم"), max_length=500, blank=True, null=True)
+    translated_content = models.TextField(_("المحتوى المترجم"), blank=True, null=True)
+
     class Meta:
         verbose_name = _("تقرير استخباراتي")
         verbose_name_plural = _("تقارير الاستخبارات")
