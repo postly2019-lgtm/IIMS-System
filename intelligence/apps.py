@@ -22,6 +22,15 @@ def seed_data_on_migrate(sender, **kwargs):
         except Exception as e:
             print(f"⚠️ Seeding failed: {e}")
 
+    # Check Reports (Ingest if sources exist but no reports)
+    from intelligence.models import IntelligenceReport
+    if Source.objects.exists() and not IntelligenceReport.objects.exists():
+        print("📰 Sources found but no reports. Auto-ingesting news...")
+        try:
+            call_command('ingest_news')
+        except Exception as e:
+            print(f"⚠️ Ingestion failed: {e}")
+
     # Check Agent Prompts
     if not AgentInstruction.objects.exists():
         print("🤖 No agent instructions found. Auto-seeding OSINT prompt...")
