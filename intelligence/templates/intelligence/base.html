@@ -286,7 +286,8 @@
                     // Assuming API returns critical_count or similar, if not we infer from notifications
                     // For now, let's look at the notifications array to find criticals
                     
-                    const criticals = data.notifications.filter(n => n.level === 'CRITICAL');
+                    const notifs = data.notifications || [];
+                    const criticals = notifs.filter(n => n.level === 'CRITICAL');
                     updateSecurityStatus(criticals);
 
                     if (data.status === 'alert' && data.count > 0) {
