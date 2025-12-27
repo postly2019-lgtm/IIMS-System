@@ -40,6 +40,7 @@ def seed_data_on_migrate(sender, **kwargs):
             print(f"⚠️ Prompt update failed: {e}")
 
 class IntelligenceConfig(AppConfig):
+    default = True
     name = 'intelligence'
 
     def ready(self):
