@@ -123,10 +123,21 @@ Credibility = (SourceReliability 40%) + (EvidenceQuality 30%) + (Corroboration 2
         messages.append({"role": "system", "content": system_prompt})
 
         # Chat History (Last 10 messages)
-        history = session.messages.all().order_by('created_at')[:10] 
-        for msg in history:
+        # Fix: Get RECENT messages (descending), then reverse to chronological
+        recent_messages = list(session.messages.all().order_by('-created_at')[:10])
+        recent_messages.reverse() # Now in chronological order (Oldest -> Newest)
+
+        for msg in recent_messages:
             role = "user" if msg.role == AgentMessage.Role.USER else "assistant"
-            messages.append({"role": role, "content": msg.content})
+            content = msg.content
+            
+            # INJECT ENHANCED CONTEXT:
+            # If this is the very last message (current user input), use the 'user_message_content' 
+            # passed to this function, which contains file attachments/context not yet saved in DB content.
+            if msg == recent_messages[-1] and role == "user":
+                content = user_message_content
+            
+            messages.append({"role": role, "content": content})
 
         # 3. Call API
         try:
