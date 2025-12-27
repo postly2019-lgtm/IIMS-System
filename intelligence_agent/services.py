@@ -263,11 +263,15 @@ class GroqClient:
             messages = [{"role": "user", "content": prompt}]
 
         try:
+            # User Preference: llama-3.1-8b-instant for speed
             completion = self.client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 messages=messages,
-                temperature=0.3,
-                max_tokens=2048,
+                temperature=0.7, # Balanced for chat
+                max_completion_tokens=1024,
+                top_p=1,
+                stream=False, # Keep False for compatibility with current views
+                stop=None
             )
             return completion.choices[0].message.content
         except Exception as e:
