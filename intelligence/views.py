@@ -1,4 +1,4 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from .models import IntelligenceReport, Source
 from core.models import UserActionLog
 from django.db.models import Count
@@ -9,14 +9,15 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from intelligence_agent.services import GroqClient
 import logging
+from django.contrib import messages
 
 logger = logging.getLogger(__name__)
 
 @login_required
 @require_POST
-def translate_report(request, report_id):
+def translate_report_api(request, report_id):
     """
-    Translates a report using the AI Agent logic (Groq).
+    Translates a report using the AI Agent logic (Groq) via API (AJAX).
     """
     report = get_object_or_404(IntelligenceReport, pk=report_id)
 
@@ -33,66 +34,49 @@ def translate_report(request, report_id):
     if not client.client:
         return JsonResponse({'status': 'error', 'message': 'AI Service Unavailable (No API Key)'}, status=503)
 
-    prompt = f"""
-    Translate the following Intelligence Report into professional Arabic.
-    Maintain military and political terminology.
-    
-    Title: {report.title}
-    Content: {report.content}
-    
-    Output Format:
-    Title: [Arabic Title]
-    Content: [Arabic Content]
-    """
-    
     try:
-        # We use a temporary session-less call or just reuse chat_completion with a dummy object if needed, 
-        # but GroqClient structure is tied to sessions. Let's make a raw call using the client directly if possible 
-        # or adapt GroqClient.
-        pass
+        translation = client.translate_text(report.title, report.content)
+        
+        if translation:
+            # Parse the output (Simple parsing assuming the model follows instructions)
+            lines = translation.strip().split('\n')
+            ar_title = ""
+            ar_content = ""
+            
+            mode = "none"
+            for line in lines:
+                if line.startswith("Title:") or line.startswith("العنوان:"):
+                    ar_title = line.split(":", 1)[1].strip()
+                    mode = "title"
+                elif line.startswith("Content:") or line.startswith("المحتوى:"):
+                    ar_content = line.split(":", 1)[1].strip()
+                    mode = "content"
+                else:
+                    if mode == "content":
+                        ar_content += "\n" + line
+                    elif mode == "title":
+                        ar_title += " " + line
+            
+            if not ar_title: 
+                 ar_title = translation[:100] + "..."
+            if not ar_content:
+                 ar_content = translation
+    
+            report.translated_title = ar_title
+            report.translated_content = ar_content
+            report.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'title': ar_title,
+                'content': ar_content
+            })
+        
+        return JsonResponse({'status': 'error', 'message': 'Translation failed to generate valid output'}, status=500)
+
     except Exception as e:
         logger.error(f"Translation failed: {e}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-
-    # Let's implement the logic assuming I'll update services.py
-    translation = client.translate_text(report.title, report.content)
-    
-    if translation:
-        # Parse the output (Simple parsing assuming the model follows instructions)
-        lines = translation.strip().split('\n')
-        ar_title = ""
-        ar_content = ""
-        
-        mode = "none"
-        for line in lines:
-            if line.startswith("Title:") or line.startswith("العنوان:"):
-                ar_title = line.split(":", 1)[1].strip()
-                mode = "title"
-            elif line.startswith("Content:") or line.startswith("المحتوى:"):
-                ar_content = line.split(":", 1)[1].strip()
-                mode = "content"
-            else:
-                if mode == "content":
-                    ar_content += "\n" + line
-                elif mode == "title":
-                    ar_title += " " + line
-        
-        if not ar_title: 
-             ar_title = translation[:100] + "..."
-        if not ar_content:
-             ar_content = translation
-
-        report.translated_title = ar_title
-        report.translated_content = ar_content
-        report.save()
-        
-        return JsonResponse({
-            'status': 'success',
-            'title': ar_title,
-            'content': ar_content
-        })
-    
-    return JsonResponse({'status': 'error', 'message': 'Translation failed'}, status=500)
 
 @login_required
 def dashboard_view(request):
@@ -160,45 +144,6 @@ def report_detail(request, report_id):
 @login_required
 def graph_view(request):
     return render(request, 'intelligence/graph.html', {})
-
-@login_required
-def translate_report(request, report_id):
-    """
-    Manually triggers translation for a report.
-    """
-    report = get_object_or_404(IntelligenceReport, pk=report_id)
-    
-    # Force re-translation or initial translation
-    client = GroqClient()
-    translated_text = client.translate_text(report.title, report.content)
-    
-    # Parse output
-    t_title = ""
-    t_content = ""
-    
-    lines = translated_text.split("\n")
-    for line in lines:
-        if line.startswith("Title:") or line.startswith("العنوان:"):
-            try:
-                t_title = line.split(":", 1)[1].strip()
-            except: pass
-        elif line.startswith("Content:") or line.startswith("المحتوى:"):
-            try:
-                t_content = line.split(":", 1)[1].strip()
-            except: pass
-            
-    if t_title and t_content:
-        report.translated_title = t_title
-        report.translated_content = t_content
-        report.processing_status = 'COMPLETED'
-        report.save()
-        messages.success(request, "تمت ترجمة التقرير بنجاح")
-    else:
-        # Fallback if parsing fails but we got something
-        # If it was a simulation, it follows the format.
-        messages.warning(request, "لم نتمكن من تحليل تنسيق الترجمة بدقة، لكن المحاولة تمت.")
-
-    return redirect('report_detail', report_id=report.id)
 
 @login_required
 @require_POST

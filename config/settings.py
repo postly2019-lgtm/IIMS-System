@@ -32,8 +32,8 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Security Settings for Railway/Production
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_HTTPONLY = True # Prevent JS access to CSRF cookie
 CSRF_USE_SESSIONS = False # Use cookie-based token (Standard)
 
