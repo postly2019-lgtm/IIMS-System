@@ -252,9 +252,9 @@ class GroqClient:
             messages = [{"role": "user", "content": prompt}]
 
         try:
-            # Use llama3-70b-8192 for high intelligence
+            # Use llama-3.1-70b-versatile for high intelligence
             completion = self.client.chat.completions.create(
-                model="llama3-70b-8192",
+                model="llama-3.1-70b-versatile",
                 messages=messages,
                 temperature=0.3, 
                 max_tokens=4096, # Increased for detailed reports
