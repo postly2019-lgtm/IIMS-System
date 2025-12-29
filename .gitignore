@@ -33,8 +33,9 @@ ENV/
 *.log
 local_settings.py
 db.sqlite3
-/media
-/staticfiles
+db.sqlite3-journal
+media/
+staticfiles/
 
 # IDE
 .vscode/
@@ -51,3 +52,13 @@ db.sqlite3
 
 # Vercel
 .vercel/
+
+# Project Specific
+*.pdf
+*.tar.gz
+*.zip
+backup_*
+debug_startup.py
+simulate_event.py
+cleanup_sources.py
+111.pdf

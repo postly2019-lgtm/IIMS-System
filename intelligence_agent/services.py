@@ -3,11 +3,53 @@ import logging
 import re
 from django.conf import settings
 from django.utils import timezone
-from .models import AgentInstruction, AgentMessage, AgentSession
+from .models import AgentInstruction, AgentMessage, AgentSession, AgentDocument
 from intelligence.models import IntelligenceReport
 from django.db.models import Q
 
 logger = logging.getLogger(__name__)
+
+def extract_text_from_file(file_obj):
+    """
+    Extracts text from an uploaded file (PDF, TXT, MD, CSV, JSON).
+    Returns a string containing the extracted text or an error message.
+    """
+    try:
+        # Reset pointer
+        if hasattr(file_obj, 'seek'):
+            file_obj.seek(0)
+            
+        filename = file_obj.name.lower()
+        extracted_text = ""
+
+        if filename.endswith('.pdf'):
+            try:
+                import pypdf
+                reader = pypdf.PdfReader(file_obj)
+                for page in reader.pages:
+                    text = page.extract_text()
+                    if text:
+                        extracted_text += text + "\n"
+                
+                if not extracted_text.strip():
+                    return "[PDF contains no extractable text - might be an image scan]"
+            except ImportError:
+                return "[System Error: pypdf library not installed on server]"
+            except Exception as e:
+                return f"[Error extracting PDF: {str(e)}]"
+
+        elif filename.endswith(('.txt', '.md', '.csv', '.json')):
+            try:
+                extracted_text = file_obj.read().decode('utf-8', errors='ignore')
+            except Exception as e:
+                return f"[Error reading text file: {str(e)}]"
+        else:
+            return f"[File type '{filename}' not fully supported for text extraction]"
+
+        return extracted_text if extracted_text else "[File is empty]"
+
+    except Exception as e:
+        return f"[General Error reading file: {str(e)}]"
 
 class GroqClient:
     def __init__(self):
@@ -51,31 +93,42 @@ class GroqClient:
 
     def get_relevant_context(self, query):
         """
-        Retrieves relevant intelligence reports from the database based on the query.
+        Retrieves relevant intelligence reports and knowledge base docs.
         Simple Keyword Search RAG.
         """
         if not query:
             return ""
 
-        # Search in title, content, and entities
+        context_str = ""
+
+        # 1. Search Intelligence Reports
         reports = IntelligenceReport.objects.filter(
             Q(title__icontains=query) | 
             Q(content__icontains=query) |
             Q(entities__name__icontains=query)
-        ).order_by('-published_at', '-credibility_score')[:10]
+        ).order_by('-published_at', '-credibility_score')[:5]
 
-        if not reports.exists():
-            return ""
+        if reports.exists():
+            context_str += "\n--- تقارير استخباراتية (Intelligence Reports) ---\n"
+            for report in reports:
+                title = report.translated_title or report.title
+                content = report.translated_content or report.content
+                context_str += f"- [ID:{report.id}] {report.published_at.strftime('%Y-%m-%d')}: {title}\n"
+                context_str += f"  المحتوى: {content[:300]}...\n\n"
 
-        context_str = "\n--- تقارير استخباراتية ذات صلة (Internal Intelligence Reports) ---\n"
-        for report in reports:
-            title = report.translated_title or report.title
-            content = report.translated_content or report.content
-            context_str += f"- [ID:{report.id}] {report.published_at.strftime('%Y-%m-%d')}: {title}\n"
-            context_str += f"  المصدر: {report.source.name} (Credibility: {report.credibility_score})\n"
-            context_str += f"  الخطورة: {report.severity} | التصنيف: {report.classification}\n"
-            context_str += f"  المحتوى: {content[:300]}...\n\n"
-        
+        # 2. Search Agent Documents (Knowledge Base)
+        docs = AgentDocument.objects.filter(
+            Q(title__icontains=query) | 
+            Q(content_text__icontains=query)
+        ).filter(is_processed=True).order_by('-created_at')[:3]
+
+        if docs.exists():
+            context_str += "\n--- قاعدة المعرفة (Knowledge Base) ---\n"
+            for doc in docs:
+                # Simple snippet extraction around the keyword could be better, but truncating is safe for now
+                snippet = doc.content_text[:500]
+                context_str += f"- [Doc: {doc.title}]\n{snippet}...\n\n"
+
         return context_str
 
     def translate_report_obj(self, report):
@@ -86,12 +139,12 @@ class GroqClient:
             return True
 
         if not self.client:
-            # Fallback for offline/demo
+            # Fallback for offline/demo - DO NOT USE BAD SIMULATION
+            # Just keep original text but mark as processed to avoid "weird symbols"
             if not report.translated_title:
-                # Basic Simulation
-                report.translated_title = self._simulated_translation(report.title, "")
-                report.translated_content = self._simulated_translation("", report.content)
-                report.processing_status = 'COMPLETED' # Mark as completed even if simulated
+                report.translated_title = report.title + " (Offline Mode)"
+                report.translated_content = report.content
+                report.processing_status = 'COMPLETED'
                 report.save(update_fields=['translated_title', 'translated_content', 'processing_status'])
             return True
 
@@ -121,11 +174,11 @@ class GroqClient:
 
     def translate_text(self, title, content):
         """
-        Translates text to Arabic using the LLM or a simulated fallback.
+        Translates text to Arabic using the LLM.
         """
         if not self.client:
-            logger.warning("GroqClient not initialized. Using simulated translation.")
-            return self._simulated_translation(title, content)
+            logger.warning("GroqClient not initialized. Translation skipped.")
+            return None # No simulation allowed
 
         prompt = f"""
         Translate the following Intelligence Report into professional Arabic.
@@ -144,72 +197,12 @@ class GroqClient:
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_tokens=2048,
+                max_tokens=4096,
             )
             return completion.choices[0].message.content
         except Exception as e:
             logger.error(f"Translation Error: {e}")
-            # Use simulated translation on error to ensure user sees Arabic
-            return self._simulated_translation(title, content)
-
-    def _simulated_translation(self, title, content):
-        """
-        Provides a mock translation by replacing common English terms with Arabic ones.
-        """
-        if not title and not content:
-            return ""
-
-        # Use a comprehensive dictionary
-        terms = {
-            "Nature Journal": "مجلة نيتشر", "Nature": "مجلة نيتشر",
-            "War": "حرب", "Military": "عسكري", "Security": "أمن", "Attack": "هجوم",
-            "Defense": "دفاع", "Missile": "صاروخ", "Troops": "قوات", "Report": "تقرير",
-            "Intelligence": "استخبارات", "Critical": "حرج", "Alert": "تنبيه",
-            "Health": "صحة", "Disease": "مرض", "Virus": "فيروس", "Vaccine": "لقاح",
-            "Government": "حكومة", "President": "رئيس", "Minister": "وزير",
-            "US": "الولايات المتحدة", "UK": "بريطانيا", "China": "الصين", "Russia": "روسيا",
-            "Iran": "إيران", "Israel": "إسرائيل", "Yemen": "اليمن", "Saudi": "السعودية",
-            "Region": "منطقة", "Border": "حدود", "Conflict": "صراع", "Peace": "سلام",
-            "Economy": "اقتصاد", "Oil": "نفط", "Gas": "غاز", "Cyber": "سيبراني",
-            "Technology": "تكنولوجيا", "Nuclear": "نووي", "Weapon": "سلاح",
-            "Organization": "منظمة", "Group": "جماعة", "Terrorist": "إرهابي",
-            "International": "دولي", "National": "وطني", "Local": "محلي",
-            "Strategy": "استراتيجية", "Operation": "عملية", "Target": "هدف",
-            "Casualties": "خسائر", "Killed": "قتل", "Injured": "جرحى",
-            "United Nations": "الأمم المتحدة", "UN": "الأمم المتحدة",
-            "Council": "مجلس", "Committee": "لجنة", "Agency": "وكالة",
-            "Plants": "نباتات", "Plant": "نبات", "Infrared": "أشعة تحت الحمراء", "Signals": "إشارات",
-            "Reproduce": "تكاثر", "Beetles": "خنافس", "Pollinating": "تلقيح", "Dark": "ظلام",
-            "Hot spot": "نقطة ساخنة", "Ready": "جاهز", "Say": "تقول", "Use": "تستخدم"
-        }
-
-        # Apply replacements using regex for safety (word boundaries)
-        sim_title = title or ""
-        sim_content = content or ""
-        
-        # Sort keys by length (descending) to match "Nature Journal" before "Nature"
-        sorted_keys = sorted(terms.keys(), key=len, reverse=True)
-        
-        # Build a single regex pattern
-        pattern = re.compile(r'\b(' + '|'.join(re.escape(k) for k in sorted_keys) + r')\b', re.IGNORECASE)
-        
-        def replace(match):
-            # Find the key that matched (case-insensitive search in terms)
-            word = match.group(0)
-            for k, v in terms.items():
-                if k.lower() == word.lower():
-                    return v
-            return word
-
-        sim_title = pattern.sub(replace, sim_title)
-        sim_content = pattern.sub(replace, sim_content)
-
-        if title and not content:
-            return sim_title
-        if content and not title:
-            return sim_content
-            
-        return f"{sim_title}\n\n{sim_content}"
+            return None
 
     def chat_completion(self, session_or_prompt, user_content=None):
         """
@@ -220,19 +213,10 @@ class GroqClient:
         if not actual_text and not hasattr(session_or_prompt, 'messages'):
             actual_text = str(session_or_prompt)
 
-        # --- 1. Quick Intent Check (Optimization) ---
-        # If user_content is simple greeting, don't waste API call
-        if actual_text:
-            stripped = actual_text.strip().lower()
-            if stripped in ['مرحبا', 'هلا', 'السلام عليكم', 'hello', 'hi']:
-                return "وعليكم السلام ورحمة الله. أنا المحلل الاستراتيجي السيادي. جاهز لاستقبال التوجيهات أو تحليل التقارير."
-
-        # --- 2. Handle Offline/Fallback Mode ---
+        # --- Strict Real Mode: No Simulation ---
         if not self.client:
-             if hasattr(session_or_prompt, 'messages'):
-                 return self._simulated_chat_response(actual_text or "")
-             else:
-                 return self._simulated_chat_response(actual_text or "")
+            # If client failed to init (missing key/lib), return error directly.
+            return "⚠️ خطأ في النظام: لا يمكن الاتصال بمحرك الذكاء الاصطناعي (Groq Client Not Initialized). يرجى التحقق من مفتاح API والاتصال بالإنترنت."
 
         messages = []
         
@@ -243,12 +227,17 @@ class GroqClient:
             system_prompt = self.get_system_prompt()
             messages.append({"role": "system", "content": system_prompt})
             
-            # 2. Add History (Optimized: Last 6 messages only to save context)
-            history = session.messages.order_by('-created_at')[:6]
+            # 1.1 Add RAG Context
+            rag_context = self.get_relevant_context(actual_text)
+            if rag_context:
+                messages.append({"role": "system", "content": f"Use this context if relevant:\n{rag_context}"})
+            
+            # 2. Add History (Last 10 messages for better context)
+            history = session.messages.order_by('-created_at')[:10]
             for msg in reversed(history):
                 role = "user" if msg.role == 'USER' else "assistant"
-                # Truncate very long messages to avoid token overflow
-                content = msg.content[:2000] if len(msg.content) > 2000 else msg.content
+                # Truncate very long messages
+                content = msg.content[:4000] if len(msg.content) > 4000 else msg.content
                 messages.append({"role": role, "content": content})
             
             # 3. Enhance latest user message
@@ -263,108 +252,18 @@ class GroqClient:
             messages = [{"role": "user", "content": prompt}]
 
         try:
-            # User Preference: llama-3.1-8b-instant for speed
+            # Use llama3-70b-8192 for high intelligence
             completion = self.client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="llama3-70b-8192",
                 messages=messages,
-                temperature=0.7, # Balanced for chat
-                max_completion_tokens=1024,
+                temperature=0.3, 
+                max_tokens=4096, # Increased for detailed reports
                 top_p=1,
-                stream=False, # Keep False for compatibility with current views
+                stream=False,
                 stop=None
             )
             return completion.choices[0].message.content
         except Exception as e:
-            error_str = str(e)
-            logger.error(f"Chat Completion Error: {error_str}")
-            
-            if "429" in error_str or "Rate limit" in error_str:
-                logger.warning("Rate Limit hit. Switching to simulated response.")
-                if hasattr(session_or_prompt, 'messages'):
-                    return self._simulated_chat_response(user_content or "Status Report")
-                else:
-                    prompt_str = str(session_or_prompt)
-                    if "Translate" in prompt_str:
-                        return self._simulated_translation(prompt_str, "")
-                    else:
-                        return self._simulated_chat_response(prompt_str)
-            
-            return f"عذراً، واجهت صعوبة تقنية في معالجة الطلب ({error_str[:50]}...). جاري حفظ الاستفسار للمراجعة."
-
-    def _simulated_chat_response(self, user_input):
-        """
-        Generates a fake but plausible intelligence response when the LLM is unavailable.
-        Uses local pattern matching to generate professional military/intelligence assessments.
-        """
-        user_input_lower = user_input.lower()
-        
-        # --- Intent 1: Greetings/Simple Queries ---
-        if len(user_input) < 20 or any(w in user_input_lower for w in ['كيف', 'من أنت', 'hello', 'hi', 'مرحبا']):
-             return "أنا نظام التحليل الاستراتيجي السيادي. أعمل حالياً في (الوضع الآمن/غير المتصل) نظراً لعدم توفر الاتصال بالمخدم المركزي. يمكنني تحليل النصوص واستخراج الكيانات والتهديدات بناءً على القواعد المحلية."
-
-        # --- Intent 2: Analysis Request (Fallthrough to Pattern Analyzer) ---
-        
-        # 1. Determine Topic & Severity
-        topic = "عام"
-        severity = "متوسط"
-        classification = "سري"
-        keywords = []
-        
-        # Military/Conflict
-        if any(w in user_input_lower for w in ['war', 'attack', 'missile', 'army', 'حرب', 'هجوم', 'صاروخ', 'جيش', 'عسكري', 'اشتباك', 'قصف']):
-            topic = "عمليات عسكرية"
-            severity = "حرج للغاية (CRITICAL)"
-            classification = "سري للغاية (TOP SECRET)"
-            keywords.append("نشاط عسكري معادِ")
-            
-        # Political/Diplomatic
-        elif any(w in user_input_lower for w in ['minister', 'president', 'treaty', 'وزير', 'رئيس', 'اتفاقية', 'سياسة', 'حكومة', 'مرسوم']):
-            topic = "شؤون سياسية"
-            severity = "عالي (HIGH)"
-            classification = "سري (SECRET)"
-            keywords.append("تحركات دبلوماسية")
-            
-        # Security/Intel
-        elif any(w in user_input_lower for w in ['spy', 'intel', 'security', 'terror', 'تجسس', 'استخبارات', 'أمن', 'إرهاب', 'تنظيم']):
-            topic = "أمن قومي"
-            severity = "حرج (CRITICAL)"
-            classification = "سري للغاية (TOP SECRET)"
-            keywords.append("تهديد أمني محتمل")
-
-        # Specific Entities (Sovereign Priority)
-        entities = []
-        if any(w in user_input_lower for w in ['yemen', 'houthi', 'اليمن', 'حوثي']): entities.append("الجمهورية اليمنية / الميليشيات")
-        if any(w in user_input_lower for w in ['iran', 'إيران']): entities.append("الجمهورية الإسلامية الإيرانية")
-        if any(w in user_input_lower for w in ['usa', 'us', 'america', 'أمريكا', 'واشنطن']): entities.append("الولايات المتحدة الأمريكية")
-        if any(w in user_input_lower for w in ['israel', 'إسرائيل', 'zionist']): entities.append("الكيان الإسرائيلي")
-        if any(w in user_input_lower for w in ['saudi', 'ksa', 'السعودية', 'المملكة']): entities.append("المملكة العربية السعودية")
-        
-        entity_str = "، ".join(entities) if entities else "غير محدد"
-
-        # 2. Construct Professional Assessment (Template-Based)
-        
-        response = f"""**وثيقة تقدير موقف (Intelligence Assessment)**
-**الحالة:** (وضع التحليل المحلي - Local Mode)
-**التصنيف:** {classification}
-**الموضوع:** تحليل {topic} - {entity_str}
-**تاريخ التحليل:** {timezone.now().strftime('%Y-%m-%d %H:%M')}
-
----
-
-### 1. القراءة الأولية (Initial Readout)
-تشير البيانات المدخلة إلى نشاط يتعلق بـ **{topic}**. النظام في وضع "الاستجابة المحلية"، لذا يعتمد التحليل على الكلمات المفتاحية والأنماط المخزنة مسبقاً.
-
-### 2. تحليل الكيانات (Entities Analysis)
-- **الكيانات المرصودة:** {entity_str}.
-- **مستوى الخطورة:** {severity}.
-- **المؤشرات:** {", ".join(keywords) if keywords else "لا توجد مؤشرات محددة في قاعدة البيانات المحلية"}.
-
-### 3. التوصيات الفورية (Immediate Actions)
-1. **أرشفة:** حفظ الاستفسار في سجلات الاستخبارات.
-2. **تنبيه:** إذا كان المحتوى يتضمن تهديداً للمملكة، يرجى تفعيل التنبيه اليدوي.
-
----
-*ملاحظة: هذا رد آلي من (المحرك السيادي المحلي) نظراً لتعذر الوصول للشبكة العصبية السحابية.*"""
-
-        return response
+            logger.error(f"Groq Chat Error: {e}")
+            return f"⚠️ حدث خطأ أثناء الاتصال بالنموذج الذكي: {str(e)}"
 

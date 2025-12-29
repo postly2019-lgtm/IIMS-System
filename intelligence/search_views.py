@@ -84,6 +84,8 @@ def fetch_urls_view(request):
         return JsonResponse({'status': 'error', 'message': 'Invalid Method'}, status=405)
     return redirect('search')
 
+from django.core.paginator import Paginator
+
 def search_view(request):
     query = request.GET.get('q', '')
     classification = request.GET.get('classification', '')
@@ -101,7 +103,8 @@ def search_view(request):
             ip_address=request.META.get('REMOTE_ADDR')
         )
 
-    reports = IntelligenceReport.objects.all().order_by('-published_at')
+    # Optimization: Select Related & Prefetch Related to avoid N+1 queries
+    reports = IntelligenceReport.objects.select_related('source').prefetch_related('entities').all().order_by('-published_at')
 
     if query:
         reports = reports.filter(
@@ -122,8 +125,13 @@ def search_view(request):
     if date_to:
         reports = reports.filter(published_at__lte=date_to)
 
+    # Pagination
+    paginator = Paginator(reports, 20) # Show 20 reports per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     context = {
-        'reports': reports,
+        'reports': page_obj, # Pass the page object
         'query': query,
         'sources': Source.objects.filter(is_active=True),
         'classifications': IntelligenceReport.Classification.choices,

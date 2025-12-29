@@ -6,6 +6,8 @@ from django.core.exceptions import PermissionDenied
 from .models import AgentSession, AgentMessage, AgentDocument, AgentInstruction
 from .services import GroqClient
 from intelligence.models import IntelligenceReport
+import os
+from dotenv import set_key
 
 @login_required
 def agent_chat_view(request, session_id=None):
@@ -24,6 +26,10 @@ def agent_chat_view(request, session_id=None):
         # Default to latest session
         active_session = sessions.first()
         messages = active_session.messages.all()
+    else:
+        # No sessions exist, create one immediately to ensure valid session_id
+        active_session = AgentSession.objects.create(user=request.user, title="محادثة جديدة")
+        messages = []
     
     context = {
         'sessions': sessions,
@@ -170,6 +176,16 @@ def send_message(request, session_id):
     })
 
 @login_required
+@require_POST
+def delete_session(request, session_id):
+    """
+    Deletes a specific chat session.
+    """
+    session = get_object_or_404(AgentSession, id=session_id, user=request.user)
+    session.delete()
+    return JsonResponse({'status': 'success', 'message': 'Session deleted'})
+
+@login_required
 def agent_settings_view(request):
     """
     View to manage system prompts and uploaded documents.
@@ -179,23 +195,61 @@ def agent_settings_view(request):
         raise PermissionDenied("Access Restricted to Managers and Admins")
 
     if request.method == 'POST':
+        # Handle API Key Update
+        if 'update_api_key' in request.POST:
+            new_key = request.POST.get('api_key', '').strip()
+            if new_key:
+                env_file = os.path.join(settings.BASE_DIR, '.env')
+                # Ensure .env exists
+                if not os.path.exists(env_file):
+                    with open(env_file, 'w') as f:
+                        f.write(f"GROQ_API_KEY={new_key}\n")
+                else:
+                    set_key(env_file, "GROQ_API_KEY", new_key)
+                
+                # Update runtime environment
+                os.environ["GROQ_API_KEY"] = new_key
+                settings.GROQ_API_KEY = new_key
+
         # Handle Instruction Update
         if 'update_instruction' in request.POST:
             prompt = request.POST.get('system_prompt')
-            AgentInstruction.objects.update_or_create(
-                id=1, # Simple singleton approach for now
-                defaults={'name': 'Main Protocol', 'system_prompt': prompt}
-            )
+            # Update active instruction or create if missing
+            instruction = AgentInstruction.objects.filter(is_active=True).first()
+            if not instruction:
+                instruction = AgentInstruction.objects.first()
+            
+            if instruction:
+                instruction.system_prompt = prompt
+                instruction.save()
+            else:
+                AgentInstruction.objects.create(
+                    name='Standard Protocol', 
+                    system_prompt=prompt, 
+                    is_active=True
+                )
         
         # Handle File Upload
         if 'upload_document' in request.POST and request.FILES.get('document'):
             doc = request.FILES['document']
-            AgentDocument.objects.create(
+            agent_doc = AgentDocument.objects.create(
                 title=doc.name,
                 file=doc,
-                uploaded_by=request.user
+                uploaded_by=request.user,
+                is_processed=False
             )
             
+            # Process Document Immediately
+            try:
+                extracted_text = extract_text_from_file(doc)
+                if extracted_text:
+                    agent_doc.content_text = extracted_text
+                    agent_doc.is_processed = True
+                    agent_doc.save()
+            except Exception as e:
+                # Log error but keep document
+                print(f"Error processing document {doc.name}: {e}")
+
         return redirect('agent_settings')
 
     instruction = AgentInstruction.objects.first()
@@ -208,6 +262,7 @@ def agent_settings_view(request):
     context = {
         'instruction': instruction,
         'documents': documents,
-        'api_key_configured': api_key_configured
+        'api_key_configured': api_key_configured,
+        'current_api_key': settings.GROQ_API_KEY
     }
     return render(request, 'intelligence_agent/settings.html', context)

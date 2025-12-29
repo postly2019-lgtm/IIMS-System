@@ -106,6 +106,32 @@
         </div>
         {% endfor %}
     </div>
+
+    <!-- Pagination -->
+    {% if reports.has_other_pages %}
+    <div class="flex justify-center mt-8 pt-4 border-t border-white/10">
+        <div class="flex items-center gap-2">
+            {% if reports.has_previous %}
+            <a href="?page={{ reports.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if request.GET.source %}&source={{ request.GET.source }}{% endif %}{% if request.GET.classification %}&classification={{ request.GET.classification }}{% endif %}{% if request.GET.date_from %}&date_from={{ request.GET.date_from }}{% endif %}{% if request.GET.date_to %}&date_to={{ request.GET.date_to }}{% endif %}" 
+               class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded border border-slate-700 transition text-sm">
+               السابق
+            </a>
+            {% endif %}
+
+            <span class="px-4 py-2 text-slate-400 text-sm font-mono dir-ltr">
+                {{ reports.number }} / {{ reports.paginator.num_pages }}
+            </span>
+
+            {% if reports.has_next %}
+            <a href="?page={{ reports.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if request.GET.source %}&source={{ request.GET.source }}{% endif %}{% if request.GET.classification %}&classification={{ request.GET.classification }}{% endif %}{% if request.GET.date_from %}&date_from={{ request.GET.date_from }}{% endif %}{% if request.GET.date_to %}&date_to={{ request.GET.date_to }}{% endif %}" 
+               class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded border border-slate-700 transition text-sm">
+               التالي
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 {% elif query %}
 <div class="glass-panel p-8 text-center mb-8">

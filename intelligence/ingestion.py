@@ -14,12 +14,32 @@ class IngestionEngine:
 
     def clean_html(self, raw_html):
         """
-        Removes HTML tags and returns clean text.
+        Removes HTML tags, normalizes whitespace, and fixes encoding issues.
         """
         if not raw_html:
             return ""
+        
+        # 1. Parse HTML
         soup = BeautifulSoup(raw_html, "html.parser")
-        return soup.get_text(separator="\n").strip()
+        
+        # 2. Extract Text with smart separator
+        text = soup.get_text(separator=" ")
+        
+        # 3. Normalize Whitespace (remove excessive newlines/tabs)
+        import re
+        import unicodedata
+        
+        # Replace multiple whitespace with single space
+        text = re.sub(r'\s+', ' ', text)
+        
+        # 4. Normalize Unicode (NFKC handles compatibility characters)
+        text = unicodedata.normalize('NFKC', text)
+        
+        # 5. Remove common garbage symbols often found in RSS
+        text = text.replace('â€™', "'").replace('â€œ', '"').replace('â€', '"')
+        text = text.replace('&nbsp;', ' ')
+        
+        return text.strip()
 
     def fetch_all(self):
         sources = Source.objects.filter(is_active=True, source_type=Source.SourceType.RSS)
