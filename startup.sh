@@ -3,9 +3,6 @@ set -e
 echo "Starting deployment script..."
 echo "Current directory: $(pwd)"
 
-echo "Running Debug Script..."
-python debug_startup.py
-
 echo "Running migrations..."
 python manage.py migrate
 
