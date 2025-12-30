@@ -14,3 +14,4 @@ qrcode==8.2
 tzdata==2025.3
 markdown==3.5.2
 feedparser==6.0.11
+openai==1.12.0

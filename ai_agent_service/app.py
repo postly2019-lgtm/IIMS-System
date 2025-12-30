@@ -30,7 +30,8 @@ class GroqAgent:
     def __init__(self):
         try:
             self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-            self.model = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
+            # Fallback to a supported model if not specified
+            self.model = os.environ.get("GROQ_MODEL", "llama-3.1-70b-versatile")
             logger.info(f"Groq Agent initialized with model: {self.model}")
         except Exception as e:
             logger.error(f"Failed to initialize Groq client: {e}")

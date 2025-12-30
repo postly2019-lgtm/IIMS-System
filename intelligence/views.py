@@ -8,8 +8,8 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from intelligence_agent.services import GroqClient
-import logging
 from django.contrib import messages
+import logging
 
 logger = logging.getLogger(__name__)
 
