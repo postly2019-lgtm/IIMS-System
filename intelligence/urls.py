@@ -18,4 +18,5 @@ urlpatterns = [
     path('alerts/manage/', views.manage_alerts, name='manage_alerts'),
     path('alerts/delete/<int:rule_id>/', views.delete_alert_rule, name='delete_alert_rule'),
     path('alerts/analysis/<int:report_id>/', views.critical_analysis_view, name='critical_analysis'),
+    path('report/<int:report_id>/export/', views.export_report, name='export_report'),
 ]

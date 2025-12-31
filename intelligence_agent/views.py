@@ -158,7 +158,14 @@ def send_message(request, session_id):
 
     # 2. Get AI Response
     client = GroqClient()
-    ai_response_text = client.chat_completion(session, ai_context_content)
+    
+    # Check for report context (Active Context Injection)
+    context_data = {}
+    report_id = data.get('report_id')
+    if report_id:
+        context_data['report_id'] = report_id
+
+    ai_response_text = client.chat_completion(session, ai_context_content, context_data=context_data)
     
     # 3. Save AI Message
     ai_message = AgentMessage.objects.create(
@@ -266,3 +273,32 @@ def agent_settings_view(request):
         'current_api_key': settings.GROQ_API_KEY
     }
     return render(request, 'intelligence_agent/settings.html', context)
+
+def llm_health_check(request):
+    """
+    Health check endpoint for LLM connectivity.
+    Sends a small prompt to the model and returns OK/FAIL.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        client = GroqClient()
+        # Send a very small prompt to minimize cost/latency
+        # Using chat_completion with a simple string prompt
+        response = client.chat_completion("ping")
+        
+        if "⚠️" in response or "Error" in response:
+             # Identify if it's a caught error in chat_completion
+             raise Exception(response)
+             
+        return JsonResponse({"status": "OK", "message": "LLM Operational"})
+    except Exception as e:
+        error_msg = str(e)
+        # Log the full error for debugging (ensure no API key leakage in simple string)
+        logger.error(f"LLM Health Check Failed: {error_msg}")
+        return JsonResponse({
+            "status": "FAIL", 
+            "reason": "LLM Connection Failed", 
+            "details": error_msg[:200] # Truncate for security
+        }, status=500)

@@ -1,5 +1,5 @@
 import re
-from .models import IntelligenceReport, Entity
+from .models import IntelligenceReport, Entity, ClassificationRule, EntityExtractionPattern
 
 class ContentAnalyzer:
     def analyze_report(self, report: IntelligenceReport):
@@ -71,30 +71,19 @@ class ContentAnalyzer:
         report.save()
 
     def _extract_entities(self, report, text):
-        # Example: predefined watch list or patterns
-        # For demo purposes, we'll look for common keywords and create entities
+        """
+        Dynamic Entity Extraction based on Sovereign Patterns.
+        """
+        # Load all patterns (cached in practice, here direct DB for simplicity)
+        patterns = EntityExtractionPattern.objects.all()
         
-        common_entities = {
-            'الرئيس': Entity.EntityType.PERSON,
-            'الوزير': Entity.EntityType.PERSON,
-            'الأمم المتحدة': Entity.EntityType.ORGANIZATION,
-            'مجلس الأمن': Entity.EntityType.ORGANIZATION,
-            'واشنطن': Entity.EntityType.LOCATION,
-            'الرياض': Entity.EntityType.LOCATION,
-            'القاهرة': Entity.EntityType.LOCATION,
-            'غزة': Entity.EntityType.LOCATION,
-            'كييف': Entity.EntityType.LOCATION,
-            'موسكو': Entity.EntityType.LOCATION,
-        }
-
-        for keyword, entity_type in common_entities.items():
-            if keyword in text:
-                # Get or Create Entity
-                entity, created = Entity.objects.get_or_create(
-                    name=keyword,
-                    defaults={'entity_type': entity_type}
+        for pattern in patterns:
+            if pattern.pattern in text:
+                 entity, created = Entity.objects.get_or_create(
+                    name=pattern.pattern,
+                    defaults={'entity_type': pattern.entity_type}
                 )
-                report.entities.add(entity)
+                 report.entities.add(entity)
 
     def _classify_content(self, report, text):
         """
@@ -103,74 +92,42 @@ class ContentAnalyzer:
         """
         text_lower = text.lower()
         
-        # --- KEYWORD GROUPS ---
+        # Load rules ordered by weight (Highest priority first)
+        rules = ClassificationRule.objects.filter(is_active=True).order_by('-weight')
         
-        # 1. KSA Identifiers
-        ksa_keywords = ['saudi', 'ksa', 'riyadh', 'kingdom', 'bin salman', 'السعودية', 'المملكة', 'الرياض', 'سلمان', 'ولي العهد']
+        matched_rule = None
         
-        # 2. Negative/Threat Indicators
-        threat_keywords = [
-            'attack', 'violation', 'criticism', 'failure', 'human rights', 'khashoggi', 'yemen war', 
-            'هجوم', 'انتهاك', 'انتقاد', 'فشل', 'حقوق انسان', 'حرب اليمن', 'تدخل', 'sanctions', 'عقوبات'
-        ]
-        
-        # 3. Armed Forces
-        military_forces_keywords = ['armed forces', 'royal guard', 'air force', 'navy', 'القوات المسلحة', 'الحرس الملكي', 'الجيش', 'القوات الجوية']
-        
-        # 4. Internal/Reputation
-        internal_keywords = ['economy', 'oil', 'aramco', 'inflation', 'unemployment', 'debt', 'اقتصاد', 'نفط', 'أرامكو', 'تضخم', 'بطالة', 'ديون']
-        
-        # 5. Achievements/Vision
-        vision_keywords = ['vision 2030', 'neom', 'project', 'launch', 'achievement', 'growth', 'رؤية 2030', 'نيوم', 'مشروع', 'إطلاق', 'إنجاز', 'نمو', 'تطور']
-        
-        # 6. Regional Neighbors (Security Context)
-        neighbors = ['yemen', 'iran', 'iraq', 'jordan', 'kuwait', 'bahrain', 'qatar', 'uae', 'oman', 'houthi', 
-                    'اليمن', 'إيران', 'العراق', 'الأردن', 'الكويت', 'البحرين', 'قطر', 'الإمارات', 'عمان', 'حوثي']
-        
-        # 7. Critical Military Events (General)
-        critical_events = [
-            'war', 'explosion', 'bomb', 'killing', 'killed', 'withdrawal', 'disarmament', 'weapon', 'missile', 'drone', 'terror',
-            'حرب', 'انفجار', 'قنبلة', 'مقتل', 'قتل', 'انسحاب', 'نزع سلاح', 'سلاح', 'صاروخ', 'طائرة مسيرة', 'إرهاب', 'عملية عسكرية'
-        ]
-
-        # --- LOGIC ENGINE ---
-        
-        is_ksa = any(k in text_lower for k in ksa_keywords)
-        is_threat = any(k in text_lower for k in threat_keywords)
-        is_forces = any(k in text_lower for k in military_forces_keywords)
-        
-        # Rule 1: Very Sensitive (حساس للغاية) - KSA Negative / Forces Negative
-        if (is_ksa and is_threat) or (is_forces and is_threat):
-            report.classification = IntelligenceReport.Classification.TOP_SECRET
-            report.topic = 'THREAT_KSA'
-            # report.severity = 'CRITICAL' # Use classification for now
-            report.credibility_score = 100 # Flag for immediate attention
+        for rule in rules:
+            # Check keywords (OR logic) - Triggering keywords
+            keywords = [k.strip().lower() for k in rule.keywords.split(',') if k.strip()]
+            has_keyword = any(k in text_lower for k in keywords)
             
-        # Rule 2: Sensitive (حساس) - KSA Internal/Reputation
-        elif is_ksa and any(k in text_lower for k in internal_keywords):
-            report.classification = IntelligenceReport.Classification.SECRET
-            report.topic = 'INTERNAL_KSA'
-            report.credibility_score = 90
+            if not has_keyword:
+                continue
+                
+            # Check required keywords (AND logic) - Contextual keywords
+            # If required_keywords is present, AT LEAST ONE of them must be in text
+            if rule.required_keywords:
+                req_keywords = [k.strip().lower() for k in rule.required_keywords.split(',') if k.strip()]
+                has_required = any(k in text_lower for k in req_keywords)
+                if not has_required:
+                    continue
             
-        # Rule 3: Secret (سري) - KSA Achievements/Vision
-        elif is_ksa and any(k in text_lower for k in vision_keywords):
-            report.classification = IntelligenceReport.Classification.SECRET
-            report.topic = 'VISION_2030'
-            report.credibility_score = 85
+            # If we are here, rule matches
+            matched_rule = rule
+            break # Stop at first high-weight match
             
-        # Rule 4: Urgent (عاجل) - Regional Security
-        elif any(k in text_lower for k in neighbors) and any(k in text_lower for k in critical_events):
-            report.classification = IntelligenceReport.Classification.CONFIDENTIAL
-            report.topic = 'REGIONAL_SECURITY'
-            report.credibility_score = 95
+        if matched_rule:
+            report.classification = matched_rule.classification
+            report.topic = matched_rule.topic
+            report.severity = matched_rule.severity
             
-        # Rule 5: Critical (حرج) - General Military Events
-        elif any(k in text_lower for k in critical_events):
-            report.classification = IntelligenceReport.Classification.TOP_SECRET
-            report.topic = 'MILITARY_OPS'
-            report.credibility_score = 80
-            
-        # Default
+            # Dynamic Credibility Adjustment for Critical Threats
+            if matched_rule.severity == 'CRITICAL':
+                report.credibility_score = 100
+            elif matched_rule.severity == 'HIGH':
+                report.credibility_score = max(report.credibility_score, 90)
+                
         else:
             report.classification = IntelligenceReport.Classification.UNCLASSIFIED
             report.topic = 'GENERAL_INTEL'

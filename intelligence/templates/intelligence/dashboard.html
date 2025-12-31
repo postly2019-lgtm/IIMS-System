@@ -79,6 +79,30 @@
             </p>
         </div>
     </div>
+    
+    <!-- TOP THREAT TICKER (New Feature) -->
+    {% if top_threats %}
+    <div class="mb-8 glass-panel border-red-900/30 bg-red-950/10 overflow-hidden relative">
+         <div class="absolute left-0 top-0 bottom-0 w-1 bg-red-600 animate-pulse"></div>
+         <div class="flex items-center gap-4 p-3">
+             <div class="flex items-center gap-2 text-red-500 font-bold whitespace-nowrap px-4 border-l border-red-800/30">
+                 <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                 تهديدات نشطة
+             </div>
+             <div class="overflow-hidden relative w-full">
+                 <div class="whitespace-nowrap animate-marquee flex gap-8 items-center">
+                     {% for threat in top_threats %}
+                     <span class="text-slate-300 text-sm flex items-center gap-2">
+                         <span class="text-red-400 font-mono">[{{ threat.get_classification_display }}]</span>
+                         {{ threat.translated_title|default:threat.title }}
+                         <span class="text-slate-600">|</span>
+                     </span>
+                     {% endfor %}
+                 </div>
+             </div>
+         </div>
+    </div>
+    {% endif %}
 
     <!-- Main Content Layout -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">

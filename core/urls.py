@@ -5,7 +5,7 @@ from . import views
 
 urlpatterns = [
     path('', RedirectView.as_view(pattern_name='login', permanent=False), name='root'),
-    path('login/', auth_views.LoginView.as_view(template_name='core/login.html', redirect_authenticated_user=True), name='login'),
+    path('login/', views.SecurityLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),
     path('api/login/qr/', views.qr_login_view, name='qr_login'),
     path('card/<str:username>/', views.user_card_view, name='user_card'),

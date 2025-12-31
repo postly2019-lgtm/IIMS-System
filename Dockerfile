@@ -25,5 +25,9 @@ RUN pip install --upgrade pip && \
 # Copy project files
 COPY . /app/
 
-# Runtime Command (Collectstatic runs here to guarantee environment integrity)
-CMD sh -c "python manage.py collectstatic --noinput && python manage.py migrate && python manage.py createsuperuser_if_none_exists && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}"
+# Make start script executable
+COPY start.sh /app/start.sh
+RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
+
+# Runtime Command
+CMD ["/app/start.sh"]

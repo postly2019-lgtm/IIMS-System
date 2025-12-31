@@ -16,3 +16,4 @@ feedparser==6.0.11
 openai==1.12.0
 groq>=0.18.0
 httpx>=0.27.0
+# End of requirements - Force Rebuild 2025-12-31

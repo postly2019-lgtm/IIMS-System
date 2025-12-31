@@ -72,6 +72,10 @@ class IntelligenceReport(models.Model):
     original_language = models.CharField(_("اللغة الأصلية"), max_length=10, default='en')
     translated_title = models.CharField(_("العنوان المترجم"), max_length=500, blank=True, null=True)
     translated_content = models.TextField(_("المحتوى المترجم"), blank=True, null=True)
+    # Sovereign Arabic Fields (Mission D)
+    title_ar = models.CharField(_("العنوان (عربي)"), max_length=500, blank=True, null=True)
+    content_ar = models.TextField(_("المحتوى (عربي)"), blank=True, null=True)
+    
     processing_status = models.CharField(_("حالة المعالجة"), max_length=20, choices=[
         ('PENDING', 'قيد المعالجة'),
         ('COMPLETED', 'تمت المعالجة'),
@@ -150,3 +154,68 @@ class IntelligenceNotification(models.Model):
 
     def __str__(self):
         return f"{self.level} - {self.title}"
+
+class SovereignTerm(models.Model):
+    class TermCategory(models.TextChoices):
+        MILITARY = 'MILITARY', _('عسكري')
+        POLITICAL = 'POLITICAL', _('سياسي')
+        GENERAL = 'GENERAL', _('عام')
+
+    english_term = models.CharField(_("المصطلح الإنجليزي"), max_length=100, unique=True)
+    arabic_translation = models.CharField(_("الترجمة العربية السيادية"), max_length=100)
+    is_regex = models.BooleanField(_("تعبير نمطي (Regex)"), default=False)
+    category = models.CharField(_("التصنيف"), max_length=50, choices=TermCategory.choices, default=TermCategory.GENERAL)
+
+    class Meta:
+        verbose_name = _("مصطلح سيادي")
+        verbose_name_plural = _("قاموس المصطلحات السيادية")
+
+    def __str__(self):
+        return f"{self.english_term} -> {self.arabic_translation}"
+
+class IgnoredSource(models.Model):
+    keyword = models.CharField(_("الكلمة المحظورة"), max_length=100, unique=True, help_text=_("جزء من الرابط أو اسم المصدر (مثال: sports, health)"))
+    reason = models.CharField(_("سبب الحظر"), max_length=255, blank=True)
+    is_active = models.BooleanField(_("نشط"), default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("نطاق/مصدر محظور")
+        verbose_name_plural = _("قائمة حظر المصادر")
+
+    def __str__(self):
+        return self.keyword
+
+class ClassificationRule(models.Model):
+    name = models.CharField(_("اسم القاعدة"), max_length=100)
+    keywords = models.TextField(_("الكلمات المفتاحية (OR)"), help_text=_("مفصولة بفاصلة. وجود أي منها يفعل القاعدة جزئياً."))
+    required_keywords = models.TextField(_("كلمات الشرط (AND)"), blank=True, help_text=_("مفصولة بفاصلة. يجب توفر إحداها على الأقل لتفعيل القاعدة."))
+    classification = models.CharField(_("التصنيف الناتج"), max_length=2, choices=IntelligenceReport.Classification.choices)
+    severity = models.CharField(_("درجة الخطورة الناتجة"), max_length=10, choices=[
+        ('LOW', 'منخفض'),
+        ('MEDIUM', 'متوسط'),
+        ('HIGH', 'عالي'),
+        ('CRITICAL', 'حرج/طارئ')
+    ], default='MEDIUM')
+    topic = models.CharField(_("الموضوع الناتج"), max_length=50, default='GENERAL_INTEL')
+    weight = models.IntegerField(_("الأولوية"), default=10, help_text=_("القواعد ذات الوزن الأعلى تطبق أولاً"))
+    is_active = models.BooleanField(_("مفعل"), default=True)
+
+    class Meta:
+        verbose_name = _("قاعدة تصنيف سيادي")
+        verbose_name_plural = _("قواعد التصنيف الآلي")
+        ordering = ['-weight']
+
+    def __str__(self):
+        return f"{self.name} ({self.weight})"
+
+class EntityExtractionPattern(models.Model):
+    pattern = models.CharField(_("النمط/الكلمة"), max_length=100, unique=True)
+    entity_type = models.CharField(_("نوع الكيان"), max_length=3, choices=Entity.EntityType.choices)
+    
+    class Meta:
+        verbose_name = _("نمط استخراج كيان")
+        verbose_name_plural = _("أنماط استخراج الكيانات")
+
+    def __str__(self):
+        return f"{self.pattern} -> {self.get_entity_type_display()}"

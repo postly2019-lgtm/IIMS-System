@@ -85,7 +85,7 @@ def dashboard_view(request):
     # Define Priority Order
     # 1. Military, 2. Security, 3. Armament, 4. Intel, 5. Mil_Tech, 6. Medical (High Sev), 7. Others
     
-    reports = IntelligenceReport.objects.annotate(
+    reports = IntelligenceReport.objects.select_related('source').prefetch_related('entities').annotate(
         priority_score=Case(
             When(topic='MILITARY', then=1),
             When(topic='SECURITY', then=2),
@@ -115,11 +115,15 @@ def dashboard_view(request):
         is_read=False
     ).count()
 
+    # Get Top Threats (High/Critical Severity) for the Ticker
+    top_threats = IntelligenceReport.objects.filter(severity__in=['HIGH', 'CRITICAL']).order_by('-published_at')[:5]
+
     context = {
         'recent_reports': recent_reports,
         'total_reports': total_reports,
         'sources_count': sources_count,
         'critical_alerts_count': critical_alerts_count,
+        'top_threats': top_threats,
     }
     return render(request, 'intelligence/dashboard.html', context)
 
@@ -290,6 +294,66 @@ def analyze_favorites(request):
     except Exception as e:
         logger.error(f"Analysis error: {e}")
         return JsonResponse({'status': 'error', 'message': str(e)})
+
+@login_required
+def check_notifications(request):
+    """
+    API to return unread notifications count.
+    """
+    from .models import IntelligenceNotification
+    count = IntelligenceNotification.objects.filter(user=request.user, is_read=False).count()
+    return JsonResponse({'status': 'success', 'count': count})
+
+@login_required
+def mark_notification_read(request, notification_id):
+    from .models import IntelligenceNotification
+    try:
+        notif = IntelligenceNotification.objects.get(id=notification_id, user=request.user)
+        notif.is_read = True
+        notif.save()
+        return JsonResponse({'status': 'success'})
+    except IntelligenceNotification.DoesNotExist:
+        return JsonResponse({'status': 'error'}, status=404)
+
+@login_required
+def export_report(request, report_id):
+    """
+    Sovereign Export Functionality with Audit Logging.
+    """
+    report = get_object_or_404(IntelligenceReport, pk=report_id)
+    
+    # Security Audit
+    UserActionLog.objects.create(
+        user=request.user,
+        action=UserActionLog.ActionType.EXPORT,
+        target_object=f"Report ID: {report.id}",
+        details=f"Exported report: {report.title}",
+        ip_address=request.META.get('REMOTE_ADDR')
+    )
+    
+    # Generate Simple Text Export
+    response_content = f"""
+    TOP SECRET // SOVEREIGN INTELLIGENCE SYSTEM
+    -------------------------------------------
+    Report ID: {report.id}
+    Title: {report.title}
+    Date: {report.published_at}
+    Source: {report.source.name}
+    Classification: {report.get_classification_display()}
+    
+    Content:
+    {report.content}
+    
+    -------------------------------------------
+    Exported by: {request.user.username}
+    Date: {timezone.now()}
+    IP: {request.META.get('REMOTE_ADDR')}
+    """
+    
+    from django.http import HttpResponse
+    response = HttpResponse(response_content, content_type="text/plain")
+    response['Content-Disposition'] = f'attachment; filename="report_{report.id}_secure.txt"'
+    return response
 
 @login_required
 def check_notifications(request):

@@ -1,5 +1,6 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth import get_user_model, login
+from django.contrib.auth.views import LoginView
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import user_passes_test, login_required
 from django.views.decorators.csrf import csrf_exempt
@@ -8,6 +9,60 @@ from django.contrib import messages
 from .models import UserActionLog
 from .forms import UserForm
 import json
+
+
+class SecurityLoginView(LoginView):
+    template_name = 'core/login.html'
+    redirect_authenticated_user = True
+
+    def get_client_ip(self):
+        x_forwarded_for = self.request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = self.request.META.get('REMOTE_ADDR')
+        return ip
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['client_ip'] = self.get_client_ip()
+        return context
+    
+    def form_valid(self, form):
+        # Log successful login
+        response = super().form_valid(form)
+        user = self.request.user
+        ip = self.get_client_ip()
+        
+        UserActionLog.objects.create(
+            user=user,
+            action=UserActionLog.ActionType.LOGIN,
+            target_object="System Login",
+            details="Successful login via password",
+            ip_address=ip
+        )
+        return response
+
+    def form_invalid(self, form):
+        # Log failed attempt
+        username = form.data.get('username')
+        User = get_user_model()
+        ip = self.get_client_ip()
+        
+        try:
+            if username:
+                user = User.objects.get(username=username)
+                UserActionLog.objects.create(
+                    user=user,
+                    action=UserActionLog.ActionType.ACCESS_DENIED,
+                    target_object="Login Failed",
+                    details="Failed password attempt",
+                    ip_address=ip
+                )
+        except User.DoesNotExist:
+            pass
+            
+        return super().form_invalid(form)
 
 def user_card_view(request, username):
     User = get_user_model()

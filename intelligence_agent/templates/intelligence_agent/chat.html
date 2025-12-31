@@ -238,6 +238,17 @@
         // Create FormData from the form element directly
         const formData = new FormData(form);
         
+        // --- CONTEXT INJECTION START ---
+        // Check if there is a Report ID in the URL query params (e.g., ?report_id=123)
+        // OR check if we are in a session that started with a report.
+        // But for active injection during chat, let's grab it from URL params if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const contextReportId = urlParams.get('report_id');
+        if (contextReportId) {
+            formData.append('report_id', contextReportId);
+        }
+        // --- CONTEXT INJECTION END ---
+        
         // Append User Message Locally
         if (content) {
             appendMessage('user', content);

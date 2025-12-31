@@ -57,13 +57,54 @@ class GroqClient:
             from groq import Groq
             api_key = settings.GROQ_API_KEY
             if not api_key:
-                logger.warning("GROQ_API_KEY is not set.")
+                logger.error("CRITICAL: GROQ_API_KEY is not set. AI features disabled.")
                 self.client = None
             else:
                 self.client = Groq(api_key=api_key)
         except ImportError:
             logger.error("Groq SDK not installed.")
             self.client = None
+
+    def _call_groq(self, messages, temperature=0.3, max_tokens=4096, model=None):
+        """
+        Executes Groq API call with fallback logic for decommissioned models.
+        """
+        if not self.client:
+            raise Exception("Groq Client not initialized")
+
+        primary_model = model or settings.GROQ_MODEL
+        fallback_model = "llama-3.3-70b-versatile"
+        
+        try:
+            return self.client.chat.completions.create(
+                model=primary_model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=1,
+                stream=False,
+                stop=None
+            )
+        except Exception as e:
+            error_msg = str(e)
+            if "model_decommissioned" in error_msg or "not found" in error_msg:
+                logger.warning(f"Model {primary_model} decommissioned/failed. Retrying with fallback {fallback_model}...")
+                try:
+                    return self.client.chat.completions.create(
+                        model=fallback_model,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        top_p=1,
+                        stream=False,
+                        stop=None
+                    )
+                except Exception as fallback_error:
+                    logger.error(f"Fallback model failed: {fallback_error}")
+                    raise fallback_error
+            else:
+                raise e
+
 
     def get_system_prompt(self):
         """Retrieve the active system prompt or use the Sovereign Standard."""
@@ -81,6 +122,7 @@ class GroqClient:
 2. **اللغة:** الردود يجب أن تكون باللغة العربية الفصحى الرصينة (لغة عسكرية/سياسية). يمنع استخدام مصطلحات أجنبية إلا للضرورة القصوى مع تعريبها.
 3. **الدقة والموضوعية:** التحليل يبنى على الوقائع المتاحة في السياق. لا تختلق معلومات. إذا كانت المعلومة ناقصة، اذكر ذلك بوضوح.
 4. **السرية:** التعامل مع المعلومات المقدمة لك على أنها "سري للغاية" ولا يجوز تداولها خارج هذا النطاق.
+5. **الالتزام بالمصطلحات:** استخدم المصطلحات السيادية المعتمدة (مثال: "قوات معادية" بدل "جيش الخصم").
 
 **نمط الإخراج المطلوب:**
 - إجابات مباشرة ودقيقة على استفسارات المستخدم.
@@ -91,36 +133,73 @@ class GroqClient:
 - إذا رصدت تهديداً عسكرياً أو أمنياً في السياق، قم بتمييزه بوضوح تحت بند **"تحذير سيادي"**.
 """
 
+    def _expand_query(self, query):
+        """
+        Expands query with synonyms and translations from SovereignTerm.
+        Sovereign Deep Search Logic.
+        """
+        try:
+            from intelligence.models import SovereignTerm
+            
+            # Basic tokenization (split by space)
+            tokens = query.split()
+            expanded_terms = set([query])
+            
+            for token in tokens:
+                if len(token) < 3: continue # Skip short words
+                
+                # Find terms where english or arabic matches token
+                matches = SovereignTerm.objects.filter(
+                    Q(english_term__icontains=token) | Q(arabic_translation__icontains=token)
+                )
+                for m in matches:
+                    expanded_terms.add(m.english_term)
+                    expanded_terms.add(m.arabic_translation)
+            
+            return list(expanded_terms)
+        except Exception as e:
+            logger.error(f"Query expansion failed: {e}")
+            return [query]
+
     def get_relevant_context(self, query):
         """
         Retrieves relevant intelligence reports and knowledge base docs.
-        Simple Keyword Search RAG.
+        Advanced Sovereign RAG with Query Expansion.
         """
         if not query:
             return ""
 
         context_str = ""
+        
+        # Expand Query
+        search_terms = self._expand_query(query)
+        logger.info(f"RAG Search Terms: {search_terms}")
+
+        # Build Q Object for Reports
+        report_q = Q()
+        for term in search_terms:
+            report_q |= Q(title__icontains=term) | Q(content__icontains=term) | Q(entities__name__icontains=term)
 
         # 1. Search Intelligence Reports
-        reports = IntelligenceReport.objects.filter(
-            Q(title__icontains=query) | 
-            Q(content__icontains=query) |
-            Q(entities__name__icontains=query)
-        ).order_by('-published_at', '-credibility_score')[:5]
+        reports = IntelligenceReport.objects.filter(report_q).distinct().order_by('-published_at', '-credibility_score')[:8]
 
         if reports.exists():
-            context_str += "\n--- تقارير استخباراتية (Intelligence Reports) ---\n"
+            context_str += "\n--- تقارير استخباراتية ذات صلة (Relevant Intelligence Reports) ---\n"
             for report in reports:
                 title = report.translated_title or report.title
                 content = report.translated_content or report.content
-                context_str += f"- [ID:{report.id}] {report.published_at.strftime('%Y-%m-%d')}: {title}\n"
-                context_str += f"  المحتوى: {content[:300]}...\n\n"
+                # Add classification info
+                class_info = f"[{report.get_classification_display()} - {report.topic}]"
+                context_str += f"- [ID:{report.id}] {class_info} {report.published_at.strftime('%Y-%m-%d')}: {title}\n"
+                context_str += f"  المحتوى: {content[:400]}...\n\n"
 
         # 2. Search Agent Documents (Knowledge Base)
-        docs = AgentDocument.objects.filter(
-            Q(title__icontains=query) | 
-            Q(content_text__icontains=query)
-        ).filter(is_processed=True).order_by('-created_at')[:3]
+        # Build Q Object for Docs
+        doc_q = Q()
+        for term in search_terms:
+            doc_q |= Q(title__icontains=term) | Q(content_text__icontains=term)
+
+        docs = AgentDocument.objects.filter(doc_q).filter(is_processed=True).distinct().order_by('-created_at')[:3]
 
         if docs.exists():
             context_str += "\n--- قاعدة المعرفة (Knowledge Base) ---\n"
@@ -130,6 +209,57 @@ class GroqClient:
                 context_str += f"- [Doc: {doc.title}]\n{snippet}...\n\n"
 
         return context_str
+
+    def translate_with_chunking(self, text, is_title=False):
+        """
+        Translates text using the user-specified sovereign prompt with chunking.
+        """
+        if not text:
+            return ""
+
+        if not self.client:
+            logger.warning("GroqClient not initialized. Translation skipped.")
+            return None
+
+        # Fixed Sovereign Prompt
+        system_prompt = "ترجم إلى العربية الفصحى مع الحفاظ على الأسماء والأرقام كما هي. لا تضف معلومات."
+
+        # If title or short text, translate directly
+        if is_title or len(text) < 4000:
+            try:
+                completion = self._call_groq(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": text}
+                    ],
+                    temperature=0.3
+                )
+                return completion.choices[0].message.content.strip()
+            except Exception as e:
+                logger.error(f"Translation Error: {e}")
+                return None
+
+        # Chunking for long content
+        chunk_size = 4000
+        chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+        translated_chunks = []
+        
+        for chunk in chunks:
+            try:
+                completion = self._call_groq(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": chunk}
+                    ],
+                    temperature=0.3
+                )
+                translated_chunks.append(completion.choices[0].message.content.strip())
+            except Exception as e:
+                logger.error(f"Chunk Translation Error: {e}")
+                # Fallback: append original chunk if translation fails to avoid data loss
+                translated_chunks.append(chunk)
+
+        return "\n".join(translated_chunks)
 
     def translate_report_obj(self, report):
         """
@@ -181,11 +311,10 @@ class GroqClient:
             return None # No simulation allowed
 
         prompt = f"""
-        Translate the following Intelligence Report into professional Arabic.
-        Maintain military and political terminology.
+        ترجم إلى العربية الفصحى مع الحفاظ على الأسماء والأرقام كما هي. لا تضف معلومات.
         
-        Title: {title}
-        Content: {content}
+        العنوان: {title}
+        المحتوى: {content}
         
         Output Format:
         Title: [Arabic Title]
@@ -193,8 +322,7 @@ class GroqClient:
         """
 
         try:
-            completion = self.client.chat.completions.create(
-                model=getattr(settings, 'GROQ_MODEL', "llama-3.1-70b-versatile"),
+            completion = self._call_groq(
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=4096,
@@ -204,9 +332,10 @@ class GroqClient:
             logger.error(f"Translation Error: {e}")
             return None
 
-    def chat_completion(self, session_or_prompt, user_content=None):
+    def chat_completion(self, session_or_prompt, user_content=None, context_data=None):
         """
         Wrapper for chat completion that handles both simple prompts and full session context.
+        Supports 'context_data' to inject specific report details.
         """
         # Resolve actual user text
         actual_text = user_content
@@ -215,28 +344,43 @@ class GroqClient:
 
         # --- Strict Real Mode: No Simulation ---
         if not self.client:
-            # If client failed to init (missing key/lib), return error directly.
-            return "⚠️ خطأ في النظام: لا يمكن الاتصال بمحرك الذكاء الاصطناعي (Groq Client Not Initialized). يرجى التحقق من مفتاح API والاتصال بالإنترنت."
+            return "⚠️ خطأ في النظام: لا يمكن الاتصال بمحرك الذكاء الاصطناعي (Groq Client Not Initialized)."
 
         messages = []
         
         # Check if first arg is a session object
         if hasattr(session_or_prompt, 'messages'):
             session = session_or_prompt
+            
             # 1. Add System Prompt
             system_prompt = self.get_system_prompt()
             messages.append({"role": "system", "content": system_prompt})
             
-            # 1.1 Add RAG Context
+            # 1.0 Inject Direct Context (If User is viewing a specific report)
+            if context_data and context_data.get('report_id'):
+                try:
+                    report = IntelligenceReport.objects.get(id=context_data['report_id'])
+                    report_context = f"""
+                    ** Active Intelligence Report Context **
+                    You are currently analyzing this specific report. All answers should reference it.
+                    Title: {report.translated_title or report.title}
+                    Classification: {report.get_classification_display()} / {report.severity}
+                    Content: {report.translated_content or report.content}
+                    """
+                    messages.append({"role": "system", "content": report_context})
+                    logger.info(f"Injected context for Report ID: {report.id}")
+                except IntelligenceReport.DoesNotExist:
+                    pass
+
+            # 1.1 Add RAG Context (General Search)
             rag_context = self.get_relevant_context(actual_text)
             if rag_context:
-                messages.append({"role": "system", "content": f"Use this context if relevant:\n{rag_context}"})
+                messages.append({"role": "system", "content": f"Use this broader knowledge base if relevant:\n{rag_context}"})
             
-            # 2. Add History (Last 10 messages for better context)
+            # 2. Add History (Last 10 messages)
             history = session.messages.order_by('-created_at')[:10]
             for msg in reversed(history):
                 role = "user" if msg.role == 'USER' else "assistant"
-                # Truncate very long messages
                 content = msg.content[:4000] if len(msg.content) > 4000 else msg.content
                 messages.append({"role": role, "content": content})
             
@@ -252,15 +396,11 @@ class GroqClient:
             messages = [{"role": "user", "content": prompt}]
 
         try:
-            # Use llama-3.1-70b-versatile for high intelligence
-            completion = self.client.chat.completions.create(
-                model="llama-3.1-70b-versatile",
+            # Use _call_groq wrapper
+            completion = self._call_groq(
                 messages=messages,
-                temperature=0.3, 
-                max_tokens=4096, # Increased for detailed reports
-                top_p=1,
-                stream=False,
-                stop=None
+                temperature=0.3,
+                max_tokens=4096,
             )
             return completion.choices[0].message.content
         except Exception as e:

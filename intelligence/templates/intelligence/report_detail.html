@@ -79,13 +79,27 @@
             </div>
             
             <div class="flex items-start gap-4">
-                <h1 class="text-3xl font-bold text-white leading-relaxed flex-1">{{ report.title }}</h1>
+                <h1 class="text-3xl font-bold text-white leading-relaxed flex-1" id="report-title">
+                    {% if report.title_ar %}
+                        {{ report.title_ar }}
+                    {% elif report.translated_title %}
+                        {{ report.translated_title }}
+                    {% else %}
+                        {{ report.title }}
+                    {% endif %}
+                </h1>
                 
                 <div class="flex gap-2 pt-1 shrink-0">
-                    <!-- Translate Icon -->
-                    <button id="translate-btn" onclick="translateReport()" class="text-slate-400 hover:text-indigo-400 transition {% if report.translated_title %}text-indigo-400{% endif %}" title="ترجمة فورية">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg>
-                    </button>
+                    <!-- Language Toggle / Translate -->
+                    {% if report.title_ar or report.translated_title %}
+                        <button id="lang-toggle-btn" onclick="toggleLanguage()" class="text-indigo-400 hover:text-white transition" title="تبديل اللغة (عربي/أصلي)">
+                            <span class="font-bold text-xs border border-current px-2 py-1 rounded">EN/AR</span>
+                        </button>
+                    {% else %}
+                        <button id="translate-btn" onclick="translateReport()" class="text-slate-400 hover:text-indigo-400 transition" title="ترجمة فورية">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg>
+                        </button>
+                    {% endif %}
                     
                     <!-- Favorite Icon -->
                     <button id="favorite-btn" onclick="toggleFavorite()" class="text-slate-400 hover:text-yellow-400 transition {% if request.user in report.favorites.all %}text-yellow-400{% endif %}" title="إضافة للمفضلة">
@@ -103,17 +117,24 @@
 
     <!-- Content -->
     <div class="prose prose-invert max-w-none mb-8 relative z-10">
-        <p class="text-lg text-slate-200 leading-8">{{ report.content|striptags }}</p>
+        <div id="report-content" class="text-lg text-slate-200 leading-8">
+            {% if report.content_ar %}
+                {{ report.content_ar|striptags|linebreaksbr }}
+            {% elif report.translated_content %}
+                {{ report.translated_content|striptags|linebreaksbr }}
+            {% else %}
+                {{ report.content|striptags|linebreaksbr }}
+            {% endif %}
+        </div>
     </div>
 
-    <!-- Translation Section (Conditional) -->
-    <div id="translated-section" class="{% if not report.translated_title %}hidden{% endif %} mb-8 p-6 bg-indigo-900/20 border border-indigo-500/30 rounded-lg relative z-10 animate-fade-in">
-        <h3 class="text-indigo-400 font-bold mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg>
-            الترجمة العربية (AI Translation)
-        </h3>
-        <h4 id="translated-title" class="text-xl font-bold text-white mb-4">{{ report.translated_title|striptags|default:"" }}</h4>
-        <p id="translated-content" class="text-slate-300 leading-8 whitespace-pre-wrap">{{ report.translated_content|striptags|default:"" }}</p>
+    <!-- Hidden Data for Toggle -->
+    <div id="data-store" class="hidden"
+         data-orig-title="{{ report.title }}"
+         data-orig-content="{{ report.content|striptags|linebreaksbr }}"
+         data-ar-title="{{ report.title_ar|default:report.translated_title|default:'' }}"
+         data-ar-content="{{ report.content_ar|default:report.translated_content|striptags|linebreaksbr|default:'' }}"
+         data-current="ar">
     </div>
 
     <!-- Analysis Section -->
@@ -187,12 +208,29 @@
 </div>
 
 <script>
+    function toggleLanguage() {
+        const store = document.getElementById('data-store');
+        const titleEl = document.getElementById('report-title');
+        const contentEl = document.getElementById('report-content');
+        
+        if (store.dataset.current === 'ar') {
+            // Switch to Original
+            titleEl.textContent = store.dataset.origTitle;
+            contentEl.innerHTML = store.dataset.origContent;
+            store.dataset.current = 'orig';
+        } else {
+            // Switch to Arabic
+            // Check if we have arabic content
+            if (store.dataset.arTitle) {
+                titleEl.textContent = store.dataset.arTitle;
+                contentEl.innerHTML = store.dataset.arContent;
+                store.dataset.current = 'ar';
+            }
+        }
+    }
+
     function translateReport() {
         const btn = document.getElementById('translate-btn');
-        const section = document.getElementById('translated-section');
-        const titleEl = document.getElementById('translated-title');
-        const contentEl = document.getElementById('translated-content');
-        
         // Loading State
         const originalContent = btn.innerHTML;
         btn.innerHTML = '<svg class="animate-spin h-6 w-6 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
@@ -208,14 +246,17 @@
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
-                titleEl.textContent = data.title;
-                contentEl.textContent = data.content;
-                section.classList.remove('hidden');
+                // Update Store
+                const store = document.getElementById('data-store');
+                store.dataset.arTitle = data.title;
+                store.dataset.arContent = data.content;
                 
-                // Restore button but make it active color
-                btn.innerHTML = originalContent;
-                btn.classList.add('text-indigo-400');
-                btn.disabled = false;
+                // Switch to Arabic view
+                store.dataset.current = 'orig'; 
+                toggleLanguage();
+                
+                // Reload to update button state (simplest)
+                location.reload();
             } else {
                 alert('Translation failed: ' + data.message);
                 btn.innerHTML = originalContent;
