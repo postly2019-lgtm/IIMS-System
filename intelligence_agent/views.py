@@ -269,8 +269,7 @@ def agent_settings_view(request):
     context = {
         'instruction': instruction,
         'documents': documents,
-        'api_key_configured': api_key_configured,
-        'current_api_key': settings.GROQ_API_KEY
+        'api_key_configured': api_key_configured
     }
     return render(request, 'intelligence_agent/settings.html', context)
 
