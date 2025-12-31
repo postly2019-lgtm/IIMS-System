@@ -10,4 +10,4 @@ echo "Collecting static files..."
 python manage.py collectstatic --noinput --clear
 
 echo "Starting Gunicorn on port ${PORT:-8004}..."
-exec gunicorn --bind=0.0.0.0:${PORT:-8004} --timeout 600 --workers 3 --log-level debug --access-logfile - --error-logfile - config.wsgi
+exec gunicorn --bind=0.0.0.0:${PORT:-8004} --timeout 600 --workers 3 --log-level debug --access-logfile - --error-logfile - config.wsgi:application
