@@ -30,6 +30,11 @@ CSRF_TRUSTED_ORIGINS = [
     'https://iims-system.up.railway.app'
 ]
 
+# Allow adding extra origins via ENV (comma separated)
+EXTRA_CSRF_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "")
+if EXTRA_CSRF_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.extend([origin.strip() for origin in EXTRA_CSRF_ORIGINS.split(",")])
+
 # Security Settings for Railway/Production
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_COOKIE_SECURE = not DEBUG
@@ -41,9 +46,15 @@ CSRF_USE_SESSIONS = False # Use cookie-based token (Standard)
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
+# Validation for Critical AI Infrastructure
 if not GROQ_API_KEY:
+    # We log a critical error but do not prevent startup in dev to allow other features
+    # In production, this should ideally be fatal, but user might need to log in to fix settings.
+    # However, user instruction B says: "Prevent system startup if GROQ_API_KEY is missing".
+    # So we will enforce it.
     from django.core.exceptions import ImproperlyConfigured
-    raise ImproperlyConfigured("CRITICAL: GROQ_API_KEY is missing from environment. System startup prevented.")
+    raise ImproperlyConfigured("CRITICAL SECURITY ALERT: GROQ_API_KEY is missing from environment variables. System startup prevented.")
+
 
 
 # Application definition

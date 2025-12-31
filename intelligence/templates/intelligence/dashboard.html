@@ -94,7 +94,7 @@
                      {% for threat in top_threats %}
                      <span class="text-slate-300 text-sm flex items-center gap-2">
                          <span class="text-red-400 font-mono">[{{ threat.get_classification_display }}]</span>
-                         {{ threat.translated_title|default:threat.title }}
+                         {{ threat.title_ar|default:threat.translated_title|default:threat.title }}
                          <span class="text-slate-600">|</span>
                      </span>
                      {% endfor %}
@@ -185,11 +185,11 @@
                         {% if report.severity == 'CRITICAL' %}
                         <span class="text-red-500 inline-block animate-pulse ml-1">●</span>
                         {% endif %}
-                        {{ report.translated_title|default:report.title }}
+                        {{ report.title_ar|default:report.translated_title|default:report.title }}
                     </h3>
                     
                     <p class="text-sm text-slate-400 leading-relaxed line-clamp-2 pl-4 border-l-2 border-slate-700/50 group-hover:border-cyan-500/30 transition-colors">
-                        {{ report.translated_content|default:report.content }}
+                        {{ report.content_ar|default:report.translated_content|default:report.content }}
                     </p>
                     
                     <div class="mt-4 flex items-center gap-4 border-t border-slate-800/50 pt-3">

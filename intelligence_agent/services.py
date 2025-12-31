@@ -186,8 +186,8 @@ class GroqClient:
         if reports.exists():
             context_str += "\n--- تقارير استخباراتية ذات صلة (Relevant Intelligence Reports) ---\n"
             for report in reports:
-                title = report.translated_title or report.title
-                content = report.translated_content or report.content
+                title = report.title_ar or report.translated_title or report.title
+                content = report.content_ar or report.translated_content or report.content
                 # Add classification info
                 class_info = f"[{report.get_classification_display()} - {report.topic}]"
                 context_str += f"- [ID:{report.id}] {class_info} {report.published_at.strftime('%Y-%m-%d')}: {title}\n"
