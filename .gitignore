@@ -62,3 +62,4 @@ debug_startup.py
 simulate_event.py
 cleanup_sources.py
 111.pdf
+.env
