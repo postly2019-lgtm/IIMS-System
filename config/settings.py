@@ -17,6 +17,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-7kbmjh&#j#r5525=%60fryv1c9@#%4p9rw_wmyq4n%uyu&%28p')
 
+# Enforce SECRET_KEY in production
+if not os.environ.get('SECRET_KEY') and not DEBUG:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured("SECRET_KEY must be set in production environment variables.")
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
