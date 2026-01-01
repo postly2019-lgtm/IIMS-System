@@ -11,6 +11,9 @@ echo "Current directory: $(pwd)"
 echo "Running migrations..."
 python manage.py migrate
 
+echo "Ensuring admin user (if ADMIN_PASSWORD is set)..."
+python manage.py ensure_admin
+
 # Collect static files
 echo "Collecting static files..."
 python manage.py collectstatic --noinput --clear
