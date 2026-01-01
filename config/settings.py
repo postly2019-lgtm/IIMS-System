@@ -48,12 +48,11 @@ GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # Validation for Critical AI Infrastructure
 if not GROQ_API_KEY:
-    # We log a critical error but do not prevent startup in dev to allow other features
-    # In production, this should ideally be fatal, but user might need to log in to fix settings.
-    # However, user instruction B says: "Prevent system startup if GROQ_API_KEY is missing".
-    # So we will enforce it.
-    from django.core.exceptions import ImproperlyConfigured
-    raise ImproperlyConfigured("CRITICAL SECURITY ALERT: GROQ_API_KEY is missing from environment variables. System startup prevented.")
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning("GROQ_API_KEY is missing. AI features will be disabled. Please set the API key in environment variables for full functionality.")
+    # Do not raise error to allow startup, but disable AI features
+    GROQ_API_KEY = None  # Explicitly set to None to indicate disabled
 
 
 

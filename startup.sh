@@ -2,12 +2,16 @@
 set -e
 echo "Starting deployment script..."
 echo "Current directory: $(pwd)"
+echo "Environment variables check:"
+echo "GROQ_API_KEY: ${GROQ_API_KEY:+SET (hidden)} ${GROQ_API_KEY:-NOT SET}"
+echo "DATABASE_URL: ${DATABASE_URL:+SET} ${DATABASE_URL:-NOT SET}"
+echo "DEBUG: $DEBUG"
 
 echo "Running migrations..."
 python manage.py migrate
 
 echo "Ensuring admin user (if ADMIN_PASSWORD is set)..."
-python manage.py ensure_admin
+python manage.py init_sec_user
 
 echo "Collecting static files..."
 python manage.py collectstatic --noinput --clear

@@ -212,3 +212,38 @@ def password_reset_request_view(request):
             return render(request, 'core/password_reset_recovery.html', {'error': "البيانات المدخلة غير صحيحة أو غير متطابقة."})
             
     return render(request, 'core/password_reset_recovery.html')
+
+
+def health_check(request):
+    """
+    Health check endpoint for Railway monitoring.
+    Returns JSON with status and basic system info.
+    """
+    from django.db import connection
+    from django.conf import settings
+    
+    status = "healthy"
+    details = {}
+    
+    # Check database
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT 1")
+        details["database"] = "connected"
+    except Exception as e:
+        status = "unhealthy"
+        details["database"] = f"error: {str(e)}"
+    
+    # Check GROQ API
+    if hasattr(settings, 'GROQ_API_KEY') and settings.GROQ_API_KEY:
+        details["ai_features"] = "enabled"
+    else:
+        details["ai_features"] = "disabled (API key missing)"
+    
+    response_data = {
+        "status": status,
+        "timestamp": "2026-01-01T00:00:00Z",  # Placeholder, use timezone.now() in real
+        "details": details
+    }
+    
+    return JsonResponse(response_data, status=200 if status == "healthy" else 503)
