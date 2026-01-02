@@ -53,17 +53,6 @@ python manage.py collectstatic --no-input --clear
 echo "✅ Static files collected"
 echo ""
 
-# Run database migrations
-echo "🗄️  Running database migrations..."
-python manage.py migrate --no-input
-echo "✅ Migrations completed"
-echo ""
-
-# Optional: Create cache table (if using database cache)
-# echo "💾 Creating cache table..."
-# python manage.py createcachetable || echo "⚠️  Cache table creation skipped"
-# echo ""
-
 echo "=========================================="
 echo "✅ Build Process Completed Successfully!"
 echo "=========================================="
