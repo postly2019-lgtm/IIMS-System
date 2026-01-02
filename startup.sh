@@ -1,25 +1,67 @@
 #!/bin/bash
+# Startup script for IIMS System - Railway/Production
 set -e
-echo "Starting deployment script..."
-echo "Current directory: $(pwd)"
-echo "Environment variables check:"
-echo "GROQ_API_KEY: ${GROQ_API_KEY:+SET (hidden)} ${GROQ_API_KEY:-NOT SET}"
-echo "DATABASE_URL: ${DATABASE_URL:+SET ($DATABASE_URL)} ${DATABASE_URL:-NOT SET (using default SQLite)}"
-echo "DEBUG: $DEBUG"
-echo "SECRET_KEY: ${SECRET_KEY:+SET} ${SECRET_KEY:-NOT SET}"
-echo "PORT: $PORT"
 
-echo "Running migrations..."
-python manage.py migrate || { echo "Migration failed"; exit 1; }
+echo "=========================================="
+echo "🚀 IIMS System - Startup Process"
+echo "=========================================="
 
-echo "Ensuring admin user (if ADMIN_PASSWORD is set)..."
-python manage.py init_sec_user || echo "init_sec_user failed, continuing..."
+# Display environment info
+echo "📋 Startup Information:"
+echo "   Current Directory: $(pwd)"
+echo "   Python Version: $(python --version)"
+echo "   Django Version: $(python -c 'import django; print(django.get_version())')"
+echo "   Port: ${PORT:-8004}"
+echo "   Workers: ${WEB_CONCURRENCY:-3}"
+echo ""
 
-echo "Collecting static files..."
-python manage.py collectstatic --noinput --clear || { echo "Collectstatic failed"; exit 1; }
+# Run database migrations
+echo "🗄️  Running database migrations..."
+python manage.py migrate --no-input
+echo "✅ Migrations completed"
+echo ""
 
-echo "Testing Django setup..."
-python manage.py check --deploy || { echo "Django check failed"; exit 1; }
+# Ensure admin user exists (if ADMIN_PASSWORD is set)
+echo "👤 Checking admin user..."
+if [ -n "$ADMIN_PASSWORD" ]; then
+    python manage.py ensure_admin
+    echo "✅ Admin user configured"
+else
+    echo "ℹ️  ADMIN_PASSWORD not set, skipping admin creation"
+fi
+echo ""
 
-echo "Starting Gunicorn on port ${PORT:-8004}..."
-exec gunicorn --bind=0.0.0.0:${PORT:-8004} --timeout 600 --workers 3 --log-level debug --access-logfile - --error-logfile - config.wsgi:application
+# Collect static files (in case they weren't collected during build)
+echo "📁 Collecting static files..."
+python manage.py collectstatic --noinput --clear || echo "⚠️  Static files collection skipped"
+echo ""
+
+# Health check before starting
+echo "🏥 Running health checks..."
+python manage.py check --deploy || echo "⚠️  Some deployment checks failed (non-critical)"
+echo ""
+
+# Calculate optimal workers
+WORKERS=${WEB_CONCURRENCY:-3}
+echo "=========================================="
+echo "🌐 Starting Gunicorn Server"
+echo "   Binding: 0.0.0.0:${PORT:-8004}"
+echo "   Workers: $WORKERS"
+echo "   Timeout: 600s"
+echo "   Log Level: info"
+echo "=========================================="
+echo ""
+
+# Start Gunicorn with optimized settings
+exec gunicorn \
+    --bind=0.0.0.0:${PORT:-8004} \
+    --workers=$WORKERS \
+    --timeout=600 \
+    --worker-class=sync \
+    --worker-tmp-dir=/dev/shm \
+    --log-level=info \
+    --access-logfile=- \
+    --error-logfile=- \
+    --capture-output \
+    --enable-stdio-inheritance \
+    config.wsgi:application

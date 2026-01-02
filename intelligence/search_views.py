@@ -1,7 +1,7 @@
 from django.db.models import Q
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from .models import IntelligenceReport, Source, Entity
+from .models import IntelligenceReport, Source, Entity, SearchConstraint
 from django.utils import timezone
 from datetime import timedelta
 from core.models import UserActionLog
@@ -105,6 +105,13 @@ def search_view(request):
 
     # Optimization: Select Related & Prefetch Related to avoid N+1 queries
     reports = IntelligenceReport.objects.select_related('source').prefetch_related('entities').all().order_by('-published_at')
+
+    constraints = list(SearchConstraint.objects.filter(is_active=True).values_list('term', flat=True))
+    if constraints:
+        constraints_q = Q()
+        for term in constraints:
+            constraints_q |= Q(title__icontains=term) | Q(content__icontains=term) | Q(entities__name__icontains=term)
+        reports = reports.filter(constraints_q).distinct()
 
     if query:
         reports = reports.filter(

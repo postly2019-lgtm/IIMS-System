@@ -65,7 +65,7 @@ class GroqClient:
             logger.error("Groq SDK not installed.")
             self.client = None
 
-    def _call_groq(self, messages, temperature=0.3, max_tokens=4096, model=None):
+    def _call_groq(self, messages, temperature=None, max_tokens=None, model=None, reasoning_effort=None, stream=False):
         """
         Executes Groq API call with fallback logic for decommissioned models.
         """
@@ -74,31 +74,39 @@ class GroqClient:
 
         primary_model = model or settings.GROQ_MODEL
         fallback_model = "llama-3.3-70b-versatile"
+
+        effective_temperature = temperature if temperature is not None else getattr(settings, 'GROQ_TEMPERATURE', 0.3)
+        effective_reasoning = reasoning_effort if reasoning_effort is not None else getattr(settings, 'GROQ_REASONING_EFFORT', None)
+        effective_max_completion = getattr(settings, 'GROQ_MAX_COMPLETION_TOKENS', None)
+        effective_max_tokens = max_tokens if max_tokens is not None else 4096
+
+        create_kwargs = {
+            'model': primary_model,
+            'messages': messages,
+            'temperature': effective_temperature,
+            'top_p': 1,
+            'stream': stream,
+            'stop': None,
+        }
+
+        if effective_reasoning:
+            create_kwargs['reasoning_effort'] = effective_reasoning
+
+        if effective_max_completion is not None:
+            create_kwargs['max_completion_tokens'] = int(effective_max_completion)
+        else:
+            create_kwargs['max_tokens'] = int(effective_max_tokens)
         
         try:
-            return self.client.chat.completions.create(
-                model=primary_model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=1,
-                stream=False,
-                stop=None
-            )
+            return self.client.chat.completions.create(**create_kwargs)
         except Exception as e:
             error_msg = str(e)
             if "model_decommissioned" in error_msg or "not found" in error_msg:
                 logger.warning(f"Model {primary_model} decommissioned/failed. Retrying with fallback {fallback_model}...")
                 try:
-                    return self.client.chat.completions.create(
-                        model=fallback_model,
-                        messages=messages,
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        top_p=1,
-                        stream=False,
-                        stop=None
-                    )
+                    fallback_kwargs = dict(create_kwargs)
+                    fallback_kwargs['model'] = fallback_model
+                    return self.client.chat.completions.create(**fallback_kwargs)
                 except Exception as fallback_error:
                     logger.error(f"Fallback model failed: {fallback_error}")
                     raise fallback_error
@@ -428,10 +436,25 @@ Operate with discipline, depth, and precision."""
         search_terms = self._expand_query(query)
         logger.info(f"RAG Search Terms: {search_terms}")
 
+        try:
+            from intelligence.models import SearchConstraint
+            constraints = list(SearchConstraint.objects.filter(is_active=True).values_list('term', flat=True))
+        except Exception:
+            constraints = []
+
+        if constraints and not any(c in query for c in constraints):
+            return ""
+
         # Build Q Object for Reports
         report_q = Q()
         for term in search_terms:
             report_q |= Q(title__icontains=term) | Q(content__icontains=term) | Q(entities__name__icontains=term)
+
+        if constraints:
+            constraints_q = Q()
+            for term in constraints:
+                constraints_q |= Q(title__icontains=term) | Q(content__icontains=term) | Q(entities__name__icontains=term)
+            report_q &= constraints_q
 
         # 1. Search Intelligence Reports
         reports = IntelligenceReport.objects.filter(report_q).distinct().order_by('-published_at', '-credibility_score')[:8]
@@ -652,11 +675,14 @@ Operate with discipline, depth, and precision."""
             # Use _call_groq wrapper
             completion = self._call_groq(
                 messages=messages,
-                temperature=0.3,
+                temperature=getattr(settings, 'GROQ_TEMPERATURE', 0.3),
                 max_tokens=4096,
+                reasoning_effort=getattr(settings, 'GROQ_REASONING_EFFORT', None),
             )
             return completion.choices[0].message.content
         except Exception as e:
             logger.error(f"Groq Chat Error: {e}")
-            return f"⚠️ حدث خطأ أثناء الاتصال بالنموذج الذكي: {str(e)}"
-
+            error_msg = str(e)
+            if "invalid_api_key" in error_msg or "Error code: 401" in error_msg:
+                return "⚠️ فشل الاتصال بمحرك الذكاء الاصطناعي: مفتاح Groq غير صالح أو غير مفعل. حدّث المفتاح من (إعدادات الوكيل) ثم أعد المحاولة."
+            return f"⚠️ حدث خطأ أثناء الاتصال بالنموذج الذكي: {error_msg}"

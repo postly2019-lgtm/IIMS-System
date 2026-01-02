@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     Source, IntelligenceReport, Entity, CriticalAlertRule, 
     IntelligenceNotification, SovereignTerm, IgnoredSource,
-    ClassificationRule, EntityExtractionPattern
+    ClassificationRule, EntityExtractionPattern, SearchConstraint
 )
 
 @admin.register(Source)
@@ -17,6 +17,13 @@ class IntelligenceReportAdmin(admin.ModelAdmin):
     list_filter = ('classification', 'severity', 'topic', 'processing_status', 'source__source_type')
     search_fields = ('title', 'content', 'translated_title')
     date_hierarchy = 'published_at'
+
+
+@admin.register(SearchConstraint)
+class SearchConstraintAdmin(admin.ModelAdmin):
+    list_display = ('term', 'constraint_type', 'is_active', 'created_at')
+    list_filter = ('constraint_type', 'is_active')
+    search_fields = ('term',)
 
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):
