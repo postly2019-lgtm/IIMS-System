@@ -1,4 +1,5 @@
 import feedparser
+import sys
 from django.utils import timezone
 from .models import Source, IntelligenceReport
 from .analysis import ContentAnalyzer
@@ -13,6 +14,9 @@ class IngestionEngine:
     def __init__(self):
         self.analyzer = ContentAnalyzer()
         self._ignored_keywords_cache = None
+        self.groq_client = None
+        if 'test' not in sys.argv:
+            self.groq_client = GroqClient()
 
     def clean_html(self, raw_html):
         """

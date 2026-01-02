@@ -186,6 +186,26 @@ class IgnoredSource(models.Model):
     def __str__(self):
         return self.keyword
 
+
+class SearchConstraint(models.Model):
+    class ConstraintType(models.TextChoices):
+        KEYWORD = 'KEYWORD', _('كلمة')
+        PHRASE = 'PHRASE', _('جملة')
+        TITLE = 'TITLE', _('عنوان')
+
+    term = models.CharField(_("نص القيد"), max_length=255, unique=True)
+    constraint_type = models.CharField(_("نوع القيد"), max_length=20, choices=ConstraintType.choices, default=ConstraintType.KEYWORD)
+    is_active = models.BooleanField(_("مفعل"), default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("قيد بحث استدلالي")
+        verbose_name_plural = _("قيود البحث الاستدلالية")
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.term
+
 class ClassificationRule(models.Model):
     name = models.CharField(_("اسم القاعدة"), max_length=100)
     keywords = models.TextField(_("الكلمات المفتاحية (OR)"), help_text=_("مفصولة بفاصلة. وجود أي منها يفعل القاعدة جزئياً."))
