@@ -3,8 +3,9 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.core.exceptions import PermissionDenied
+from django.conf import settings
 from .models import AgentSession, AgentMessage, AgentDocument, AgentInstruction
-from .services import GroqClient
+from .services import GroqClient, extract_text_from_file
 from intelligence.models import IntelligenceReport
 import os
 from dotenv import set_key
@@ -205,6 +206,7 @@ def agent_settings_view(request):
         # Handle API Key Update
         if 'update_api_key' in request.POST:
             new_key = request.POST.get('api_key', '').strip()
+            new_model = request.POST.get('model', '').strip()
             if new_key:
                 env_file = os.path.join(settings.BASE_DIR, '.env')
                 # Ensure .env exists
@@ -217,6 +219,17 @@ def agent_settings_view(request):
                 # Update runtime environment
                 os.environ["GROQ_API_KEY"] = new_key
                 settings.GROQ_API_KEY = new_key
+
+            if new_model:
+                env_file = os.path.join(settings.BASE_DIR, '.env')
+                if not os.path.exists(env_file):
+                    with open(env_file, 'w') as f:
+                        f.write(f"GROQ_MODEL={new_model}\n")
+                else:
+                    set_key(env_file, "GROQ_MODEL", new_model)
+
+                os.environ["GROQ_MODEL"] = new_model
+                settings.GROQ_MODEL = new_model
 
         # Handle Instruction Update
         if 'update_instruction' in request.POST:
@@ -263,13 +276,14 @@ def agent_settings_view(request):
     documents = AgentDocument.objects.filter(uploaded_by=request.user).order_by('-created_at')
     
     # Check if API Key is configured
-    from django.conf import settings
     api_key_configured = bool(settings.GROQ_API_KEY)
+    active_model = getattr(settings, 'GROQ_MODEL', '')
 
     context = {
         'instruction': instruction,
         'documents': documents,
-        'api_key_configured': api_key_configured
+        'api_key_configured': api_key_configured,
+        'active_model': active_model,
     }
     return render(request, 'intelligence_agent/settings.html', context)
 
@@ -296,6 +310,14 @@ def llm_health_check(request):
         error_msg = str(e)
         # Log the full error for debugging (ensure no API key leakage in simple string)
         logger.error(f"LLM Health Check Failed: {error_msg}")
+
+        if "invalid_api_key" in error_msg or "Error code: 401" in error_msg:
+            return JsonResponse({
+                "status": "FAIL",
+                "reason": "Invalid API Key",
+                "details": "مفتاح Groq غير صالح أو غير مفعل. حدّث المفتاح وأعد المحاولة.",
+            }, status=401)
+
         return JsonResponse({
             "status": "FAIL", 
             "reason": "LLM Connection Failed", 

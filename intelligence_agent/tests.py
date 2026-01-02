@@ -9,7 +9,13 @@ User = get_user_model()
 class IntelligenceAgentTests(TestCase):
     def setUp(self):
         self.client = Client()
-        self.user = User.objects.create_user(username='agent_user', password='password123')
+        self.user = User.objects.create_user(
+            username='agent_user',
+            password='password123',
+            role=User.Role.ADMIN,
+            is_staff=True,
+            is_superuser=True,
+        )
         self.client.force_login(self.user)
 
     def test_agent_chat_view_loads(self):
