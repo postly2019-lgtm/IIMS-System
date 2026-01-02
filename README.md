@@ -1,114 +1,309 @@
-# منصة الاستقصاء الذكي (IIMS)
-### Intelligent Investigation Platform
-**نظام سيادي لتحليل المعلومات من المصادر المفتوحة**
+# IIMS-System
 
----
+نظام إدارة المعلومات الاستخباراتية (Intelligence Information Management System)
 
-## 📌 نظرة عامة
-**منصة الاستقصاء الذكي** هي نظام استخباراتي متقدم مصمم لجمع، معالجة، وتحليل المعلومات من المصادر المفتوحة (OSINT) والتقارير الميدانية. تم بناء النظام بمعايير "السيادة الرقمية" لضمان أمن المعلومات ودقة التحليل، مع دعم كامل للغة العربية والمصطلحات العسكرية والأمنية.
+## Overview
 
-النظام يعتمد على تقنيات الذكاء الاصطناعي (Generative AI) عبر محرك **Groq** لتقديم تحليلات استراتيجية فورية، ترجمة ذكية، وربط للعلاقات بين الكيانات (الأشخاص، الأماكن، المنظمات).
+Django-based intelligence platform for managing, ingesting, and analyzing reports and sources with built-in audit logging and Arabic language support.
 
----
+## Features
 
-## 🚀 المميزات الرئيسية
+- **Custom User Authentication**: QR code login, staff roles, custom user model
+- **Intelligence Reports**: Ingest and manage intelligence reports with rich metadata
+- **Source Management**: Track and manage intelligence sources
+- **Audit Logging**: Complete action audit trail for compliance
+- **Arabic UI**: RTL-friendly templates and localization (ar-SA)
+- **Static File Serving**: WhiteNoise integration for production deployment
 
-### 1. التحليل الذكي (AI-Powered Intelligence)
-- **تقدير موقف استراتيجي:** توليد تقارير تقدير موقف عاجلة بناءً على البيانات الأولية.
-- **الترجمة الاستخباراتية:** ترجمة التقارير الأجنبية مع الحفاظ على السياق الأمني والمصطلحات الفنية.
-- **استخراج الكيانات:** التعرف الآلي على الأسماء، الرتب، والمواقع الجغرافية.
+## Tech Stack
 
-### 2. إدارة المصادر (Source Management)
-- **الرصد الآلي:** جلب الأخبار والتقارير من مصادر RSS و APIs بشكل دوري.
-- **تقييم المصداقية:** تصنيف المصادر بناءً على الموثوقية والدقة التاريخية.
+- **Framework**: Django 5.0.1
+- **Database**: SQLite (development) / PostgreSQL (production)
+- **Static Files**: WhiteNoise
+- **AI Engine**: Groq (for translation and analysis)
+- **Language**: Arabic (ar-SA), localized to Asia/Riyadh timezone
+- **Deployment**: Railway, Render, Vercel, Docker
 
-### 3. الأمن والسيادة (Security & Sovereignty)
-- **دخول آمن (QR Code):** نظام مصادقة ثنائي يعتمد على بطاقات الهوية الرقمية المشفرة.
-- **سجل التدقيق (Audit Log):** تتبع كامل لكافة حركات المستخدمين (اطلاع، طباعة، بحث) لضمان المساءلة.
-- **صلاحيات متدرجة:** نظام أدوار صارم (مسؤول نظام، محلل أول، مستخدم).
+## Project Structure
 
-### 4. واجهة القيادة (Command Center)
-- **لوحة مؤشرات تفاعلية:** عرض حي للتهديدات، التحديثات، وحالة النظام.
-- **بحث متقدم:** محرك بحث يدعم الفلاتر الزمنية، التصنيف الأمني، والمصدر.
-- **وضع العمليات:** واجهة "Dark Mode" مصممة لغرف العمليات والعمل المستمر.
+```
+├── config/              # Django project settings
+├── core/                # User auth, custom User model, audit logging
+├── intelligence/        # Reports, sources, analysis, ingestion
+├── manage.py            # Django management CLI
+├── requirements.txt     # Project dependencies
+├── db.sqlite3           # SQLite database (development)
+└── media/               # Uploaded files (QR codes, user avatars)
+```
 
----
+## Quick Start
 
-## 🛠️ متطلبات التشغيل
-- **Python:** 3.9 أو أحدث.
-- **Database:** SQLite (افتراضي للتطوير) أو PostgreSQL (للبيئة الإنتاجية).
-- **API Key:** مفتاح تفعيل لخدمة Groq (للذكاء الاصطناعي).
+### Prerequisites
+- Python 3.9+
+- Git
 
----
+### Installation
 
-## 📦 دليل التثبيت
-
-### 1. استنساخ المستودع
+1. Clone the repository:
 ```bash
-git clone https://github.com/YourOrg/IIMS-System.git
+git clone https://github.com/FASIL702/IIMS-System.git
 cd IIMS-System
 ```
 
-### 2. إعداد البيئة الافتراضية
+2. Create and activate virtual environment:
 ```bash
 python -m venv venv
-# لنظام Windows:
+# On Windows:
 venv\Scripts\activate
-# لنظام Linux/Mac:
+# On macOS/Linux:
 source venv/bin/activate
 ```
 
-### 3. تثبيت المكتبات المطلوبة
+3. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. إعداد متغيرات البيئة
-قم بنسخ ملف المثال `.env.example` إلى `.env` وقم بتعديل القيم:
-```bash
-cp .env.example .env
-```
-*يجب إضافة `GROQ_API_KEY` لتفعيل مميزات الذكاء الاصطناعي.*
-
-### 5. تجهيز قاعدة البيانات
+4. Apply migrations:
 ```bash
 python manage.py migrate
 ```
 
-### 6. إنشاء حساب مسؤول (Superuser)
+5. Create superuser (staff):
 ```bash
 python manage.py createsuperuser
 ```
 
-### 7. تشغيل النظام
+6. Run development server:
 ```bash
 python manage.py runserver
 ```
-يمكنك الوصول للنظام عبر: `http://localhost:8000`
+
+Navigate to `http://localhost:8000/` to access the application.
+
+## Management Commands
+
+### Initialize Security User
+```bash
+python manage.py init_sec_user
+```
+Creates a default security user for QR login testing.
+
+### Setup Roles
+```bash
+python manage.py setup_roles
+```
+Initializes user roles and permissions.
+
+### Ingest News
+```bash
+python manage.py ingest_news
+```
+Ingests news data into intelligence reports.
+
+## Authentication
+
+### Standard Login
+Visit `/login/` and enter credentials.
+
+### QR Code Login
+POST JSON to `/login/qr/` with format:
+```json
+{
+  "qr_data": "USER:username|JOB:job_number|UID:user_id"
+}
+```
+
+## Audit Logging
+
+All user actions are logged via `UserActionLog` model:
+- Login / Logout
+- Report views
+- User management actions
+- Admin operations
+
+Access audit logs at `/audit/` (staff only).
+
+## Configuration
+
+Key settings in `config/settings.py`:
+- `AUTH_USER_MODEL = 'core.User'`
+- `LANGUAGE_CODE = 'ar'`
+- `TIME_ZONE = 'Asia/Riyadh'`
+- `ALLOWED_HOSTS = ['*']` (production: restrict)
+- `CSRF_TRUSTED_ORIGINS` for Azure deployment
+
+## Testing
+
+Run Django test suite:
+```bash
+python manage.py test
+```
+
+Test files:
+- `core/tests*.py` — user, auth, audit logging tests
+- `intelligence/tests*.py` — report, source, analysis tests
+
+## 🚀 Deployment
+
+IIMS System is production-ready and can be deployed on multiple platforms.
+
+### Quick Deploy Options
+
+#### Railway (Recommended)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new)
+
+**Why Railway?**
+- ✅ Easy setup with PostgreSQL included
+- ✅ Automatic deployments from GitHub
+- ✅ Free SSL certificates
+- ✅ Built-in monitoring and logs
+- ✅ Affordable pricing ($5/month)
+
+**Quick Start:**
+1. Click the button above
+2. Connect your GitHub repository
+3. Add environment variables (see below)
+4. Deploy!
+
+📖 **Detailed Guide**: [RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md)
 
 ---
 
-## ⚙️ أوامر الإدارة المتقدمة
+#### Render
+**Steps:**
+1. Create account at [render.com](https://render.com)
+2. New → Web Service
+3. Connect GitHub repository
+4. Configure:
+   - Build Command: `bash build.sh`
+   - Start Command: `bash startup.sh`
+5. Add PostgreSQL database
+6. Set environment variables
+7. Deploy
 
-**إعداد البيانات الأولية (اختياري):**
+---
+
+#### Docker
 ```bash
-# إنشاء مستخدم أمني للتجربة (QR Login)
-python manage.py init_sec_user
+# Build image
+docker build -t iims-system:latest .
 
-# جلب أخبار فورية من المصادر
-python manage.py ingest_news
+# Run container
+docker run -d \
+  --name iims-system \
+  -p 8004:8004 \
+  -e SECRET_KEY="your-secret-key" \
+  -e DATABASE_URL="postgresql://..." \
+  -e ADMIN_PASSWORD="your-password" \
+  iims-system:latest
 ```
 
 ---
 
-## 🔒 إخلاء مسؤولية أمني
-هذا النظام مصمم للتعامل مع معلومات حساسة.
-- **لا تقم برفع ملفات `.env` أو قاعدة البيانات `db.sqlite3` إلى المستودعات العامة.**
-- تأكد من تغيير `SECRET_KEY` عند النشر في بيئة إنتاجية.
-- كافة التحليلات الصادرة عن الذكاء الاصطناعي هي أدوات مساعدة للقرار ولا تستبدل التقدير البشري المختص.
+### Environment Variables
+
+#### Required Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SECRET_KEY` | Django secret key | Generate with: `python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'` |
+| `DEBUG` | Debug mode (False in production) | `False` |
+| `ALLOWED_HOSTS` | Allowed domains | `myapp.railway.app` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:5432/db` |
+| `ADMIN_PASSWORD` | Admin user password | `SecurePassword123!` |
+
+#### Optional Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GROQ_API_KEY` | Groq AI API key for translation | None |
+| `GROQ_MODEL` | AI model to use | `llama-3.3-70b-versatile` |
+| `WEB_CONCURRENCY` | Number of Gunicorn workers | `3` |
+| `PORT` | Application port | `8004` |
+
+📖 **Complete Documentation**: 
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Comprehensive deployment guide
+- [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md) - All environment variables
+- [RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md) - Railway-specific guide
 
 ---
 
-## 📜 الحقوق
-**جميع الحقوق محفوظة © 2025 - منصة الاستقصاء الذكي.**
-غير مسموح بنسخ أو توزيع هذا النظام دون تصريح رسمي.
+### Health Checks
+
+The system includes built-in health check endpoints:
+
+```bash
+# Basic health check
+GET /health/
+
+# Detailed health check (staff only)
+GET /health/detailed/
+
+# Kubernetes-style probes
+GET /health/ready/
+GET /health/live/
+```
+
+**Python Health Check Script:**
+```bash
+python health_check.py
+```
+
+This will verify:
+- ✅ Database connectivity
+- ✅ Migrations status
+- ✅ Static files
+- ✅ Environment variables
+- ✅ Security settings
+- ✅ Groq AI integration
+
+## API Endpoints
+
+### Authentication
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Home / redirect to dashboard |
+| `/login/` | GET, POST | User login page |
+| `/login/qr/` | POST | QR code login endpoint |
+| `/logout/` | GET | User logout |
+
+### Intelligence
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/intelligence/dashboard/` | GET | Intelligence dashboard (auth required) |
+| `/intelligence/report/<id>/` | GET | View intelligence report |
+| `/intelligence/sources/` | GET | Source management |
+| `/intelligence/analysis/` | GET | Analysis tools |
+
+### Admin & Monitoring
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/admin/` | GET | Admin panel (staff only) |
+| `/audit/` | GET | Audit log (staff only) |
+| `/health/` | GET | Health check endpoint |
+| `/health/detailed/` | GET | Detailed health check (staff only) |
+| `/health/ready/` | GET | Readiness probe |
+| `/health/live/` | GET | Liveness probe |
+
+### AI Agent
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/agent/` | GET | AI agent interface |
+| `/agent/chat/` | POST | Chat with AI agent |
+| `/health/llm/` | GET | LLM health check |
+
+## Contributing
+
+1. Create a feature branch: `git checkout -b feature/your-feature`
+2. Commit changes: `git commit -m "Add your feature"`
+3. Push to branch: `git push origin feature/your-feature`
+4. Open a Pull Request
+
+## License
+
+This project is proprietary. All rights reserved.
+
+## Contact
+
+For questions or issues, contact the project maintainer or create an issue on GitHub.
