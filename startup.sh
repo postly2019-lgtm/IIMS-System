@@ -16,6 +16,7 @@ echo "   Workers: ${WEB_CONCURRENCY:-3}"
 echo ""
 
 echo "🔎 Checking database readiness..."
+set +e
 python - <<'PY'
 import os, time, sys
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
@@ -40,7 +41,9 @@ if not ready:
     print('DB readiness failed:', last_error)
 sys.exit(0 if ready else 1)
 PY
-if [ $? -ne 0 ]; then
+rc=$?
+set -e
+if [ $rc -ne 0 ]; then
   echo "❌ Database not ready. Starting in DEGRADED MODE. Skipping migrations and deploy checks."
   SKIP_DB_TASKS=1
 else
