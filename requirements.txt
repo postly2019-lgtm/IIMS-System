@@ -23,6 +23,7 @@ python-dotenv==1.0.0
 # AI & Document Processing
 groq==0.11.0
 pypdf==3.17.4
+Markdown==3.7
 
 # File Upload Support
 python-multipart==0.0.6
