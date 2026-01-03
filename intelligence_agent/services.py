@@ -53,16 +53,27 @@ def extract_text_from_file(file_obj):
 
 class GroqClient:
     def __init__(self):
+        api_key = getattr(settings, 'GROQ_API_KEY', None)
+        base_url = getattr(settings, 'GROQ_BASE_URL', 'https://api.groq.com/openai/v1')
+        if not api_key:
+            logger.error("CRITICAL: GROQ_API_KEY is not set. AI features disabled.")
+            self.client = None
+            return
+        # Prefer OpenAI-compatible client if available
+        try:
+            from openai import OpenAI
+            self.client = OpenAI(api_key=api_key, base_url=base_url)
+            logger.info("Initialized OpenAI-compatible client for Groq endpoint")
+            return
+        except Exception:
+            pass
+        # Fallback to Groq SDK
         try:
             from groq import Groq
-            api_key = settings.GROQ_API_KEY
-            if not api_key:
-                logger.error("CRITICAL: GROQ_API_KEY is not set. AI features disabled.")
-                self.client = None
-            else:
-                self.client = Groq(api_key=api_key)
-        except ImportError:
-            logger.error("Groq SDK not installed.")
+            self.client = Groq(api_key=api_key)
+            logger.info("Initialized Groq SDK client")
+        except Exception:
+            logger.error("Groq SDK not installed or failed to initialize.")
             self.client = None
 
     def _call_groq(self, messages, temperature=None, max_tokens=None, model=None, reasoning_effort=None, stream=False):

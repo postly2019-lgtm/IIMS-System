@@ -210,3 +210,56 @@ def liveness_check(request):
     Usage: GET /health/live/
     """
     return JsonResponse({'alive': True}, status=200)
+
+
+def app_health(request):
+    """
+    Application health without requiring DB.
+    Shows degraded status if DB unavailable.
+    Usage: GET /health/app
+    """
+    degraded = False
+    try:
+        connection.ensure_connection()
+    except Exception:
+        degraded = True
+    return JsonResponse({
+        'app': 'ok' if not degraded else 'degraded',
+        'debug': settings.DEBUG,
+        'language': settings.LANGUAGE_CODE,
+        'timezone': settings.TIME_ZONE,
+    }, status=200 if not degraded else 503)
+
+
+def db_health(request):
+    """
+    Database health with retries (exponential backoff).
+    Usage: GET /health/db
+    """
+    retries = int(getattr(settings, 'DB_READINESS_MAX_RETRIES', 5))
+    base = float(getattr(settings, 'DB_READINESS_BACKOFF_BASE', 0.5))
+    for attempt in range(retries):
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT 1')
+                cursor.fetchone()
+            status = {
+                'db': 'ok',
+                'attempts': attempt + 1,
+            }
+            return JsonResponse(status, status=200)
+        except Exception as e:
+            import time
+            delay = base * (2 ** attempt)
+            time.sleep(delay)
+            last_error = str(e)
+    # Mask credentials in the DATABASE_URL if present
+    raw_url = os.environ.get('DATABASE_URL', '')
+    masked = 'missing'
+    if raw_url:
+        try:
+            import re
+            masked = re.sub(r'//[^/]*@', '//****@', raw_url)
+        except Exception:
+            masked = 'present'
+    return JsonResponse({'db': 'unavailable', 'error': last_error, 'database_url': masked}, status=503)

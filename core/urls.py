@@ -22,4 +22,6 @@ urlpatterns = [
     path('health/detailed/', health_views.detailed_health_check, name='detailed_health_check'),
     path('health/ready/', health_views.readiness_check, name='readiness_check'),
     path('health/live/', health_views.liveness_check, name='liveness_check'),
+    path('health/app', health_views.app_health, name='app_health'),
+    path('health/db', health_views.db_health, name='db_health'),
 ]
