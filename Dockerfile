@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     libjpeg-dev \
     zlib1g-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies
@@ -30,4 +31,7 @@ COPY start.sh /app/start.sh
 RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
 
 # Runtime Command
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=5 \
+    CMD curl -fsS http://localhost:${PORT:-8004}/health/app || exit 1
+
 CMD ["/app/start.sh"]
