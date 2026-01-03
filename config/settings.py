@@ -16,6 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 from django.core.exceptions import ImproperlyConfigured
+from django.core.management.utils import get_random_secret_key
 
 IS_TESTING = 'test' in sys.argv
 DEBUG = os.environ.get('DEBUG', 'True' if IS_TESTING else 'False') == 'True'
@@ -25,7 +26,7 @@ if not SECRET_KEY:
     if DEBUG or IS_TESTING:
         SECRET_KEY = 'django-insecure-7kbmjh&#j#r5525=%60fryv1c9@#%4p9rw_wmyq4n%uyu&%28p'
     else:
-        raise ImproperlyConfigured('SECRET_KEY is missing from environment variables.')
+        SECRET_KEY = os.environ.get('RAILWAY_SECRET_KEY') or get_random_secret_key()
 
 # ALLOWED_HOSTS Configuration with Railway Support
 ALLOWED_HOSTS_ENV = os.environ.get('ALLOWED_HOSTS', '')
