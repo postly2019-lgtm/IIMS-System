@@ -29,7 +29,7 @@ try:
     print("SUCCESS")
     {checks}
 except Exception as e:
-    print(f"ERROR: {{e}}")
+    print("ERROR:", str(e))
     sys.exit(1)
 """
         env_setup = '\n'.join([f"os.environ['{k}'] = '{v}'" for k, v in env_vars.items()])
