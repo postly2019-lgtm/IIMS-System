@@ -18,6 +18,18 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+# Helper function for parsing boolean environment variables
+def str_to_bool(value, default=False):
+    """
+    Convert string to boolean.
+    Accepts: 'true', 'yes', '1' as True (case-insensitive)
+    Returns default if value is None or empty.
+    """
+    if not value:
+        return default
+    return value.lower() in ('true', '1', 'yes')
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
@@ -26,7 +38,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # Fallback to development key only if DEBUG is True and SECRET_KEY is not set
-DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
+DEBUG = str_to_bool(os.environ.get('DEBUG'), default=True)
 
 if not SECRET_KEY:
     if DEBUG:
@@ -130,7 +142,7 @@ if DATABASE_URL:
             DATABASE_URL,
             conn_max_age=int(os.environ.get('DB_CONN_MAX_AGE', 600)),
             conn_health_checks=True,
-            ssl_require=os.environ.get('DB_SSL_REQUIRE', 'False').lower() in ('true', '1', 'yes')
+            ssl_require=str_to_bool(os.environ.get('DB_SSL_REQUIRE'), default=False)
         )
     }
 else:
@@ -144,7 +156,7 @@ else:
 
 # Set connection timeout for database operations
 DATABASES['default'].setdefault('OPTIONS', {})
-if 'sqlite' not in DATABASES['default']['ENGINE']:
+if not DATABASES['default']['ENGINE'].endswith('sqlite3'):
     # PostgreSQL connection timeout options
     DATABASES['default']['OPTIONS'].update({
         'connect_timeout': int(os.environ.get('DB_CONNECT_TIMEOUT', 10)),
@@ -206,24 +218,31 @@ if not DEBUG:
         CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_origins_env.split(',') if origin.strip()]
     
     # Auto-detect from platform-specific environment variables
-    if os.environ.get('RAILWAY_PUBLIC_DOMAIN'):
-        CSRF_TRUSTED_ORIGINS.append(f"https://{os.environ.get('RAILWAY_PUBLIC_DOMAIN')}")
-    if os.environ.get('RENDER_EXTERNAL_HOSTNAME'):
-        CSRF_TRUSTED_ORIGINS.append(f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}")
-    if os.environ.get('RENDER_EXTERNAL_URL'):
-        CSRF_TRUSTED_ORIGINS.append(os.environ.get('RENDER_EXTERNAL_URL'))
-    if os.environ.get('VERCEL_URL'):
-        CSRF_TRUSTED_ORIGINS.append(f"https://{os.environ.get('VERCEL_URL')}")
+    railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
+    if railway_domain:
+        CSRF_TRUSTED_ORIGINS.append(f"https://{railway_domain}")
+    
+    render_hostname = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+    if render_hostname:
+        CSRF_TRUSTED_ORIGINS.append(f"https://{render_hostname}")
+    
+    render_url = os.environ.get('RENDER_EXTERNAL_URL')
+    if render_url:
+        CSRF_TRUSTED_ORIGINS.append(render_url)
+    
+    vercel_url = os.environ.get('VERCEL_URL')
+    if vercel_url:
+        CSRF_TRUSTED_ORIGINS.append(f"https://{vercel_url}")
     
     # Remove duplicates while preserving order
     CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(CSRF_TRUSTED_ORIGINS))
 
 # Security settings for production
 if not DEBUG:
-    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() in ('true', '1', 'yes')
+    SECURE_SSL_REDIRECT = str_to_bool(os.environ.get('SECURE_SSL_REDIRECT'), default=True)
     SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', 31536000))
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'True').lower() in ('true', '1', 'yes')
-    SECURE_HSTS_PRELOAD = os.environ.get('SECURE_HSTS_PRELOAD', 'True').lower() in ('true', '1', 'yes')
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = str_to_bool(os.environ.get('SECURE_HSTS_INCLUDE_SUBDOMAINS'), default=True)
+    SECURE_HSTS_PRELOAD = str_to_bool(os.environ.get('SECURE_HSTS_PRELOAD'), default=True)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True

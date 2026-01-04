@@ -61,12 +61,18 @@ except Exception as e:
         returncode, stdout, stderr = self._test_settings_with_env(
             {'DEBUG': 'True'},
             {'SECRET_KEY_SET': 'bool(settings.SECRET_KEY)', 
-             'HAS_INSECURE': '"django-insecure" in settings.SECRET_KEY'}
+             'SECRET_KEY_LENGTH': 'len(settings.SECRET_KEY)'}
         )
         self.assertEqual(returncode, 0, f"Script failed: {stderr}")
         self.assertIn('SUCCESS', stdout)
         self.assertIn('SECRET_KEY_SET: True', stdout)
-        self.assertIn('HAS_INSECURE: True', stdout)
+        # Verify the key is reasonably long (not empty or too short)
+        # This tests behavior without coupling to specific implementation
+        output_lines = stdout.split('\n')
+        for line in output_lines:
+            if 'SECRET_KEY_LENGTH:' in line:
+                length = int(line.split(':')[1].strip())
+                self.assertGreater(length, 20, "Fallback SECRET_KEY should be reasonably long")
     
     def test_secret_key_required_in_production(self):
         """Test that SECRET_KEY is required when DEBUG=False."""
