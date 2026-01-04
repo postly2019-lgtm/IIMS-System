@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,13 +21,135 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-7kbmjh&#j#r5525=%60fryv1c9@#%4p9rw_wmyq4n%uyu&%28p'
+from django.core.exceptions import ImproperlyConfigured
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+IS_TESTING = 'test' in sys.argv
+DEBUG = os.environ.get('DEBUG', 'True' if IS_TESTING else 'False') == 'True'
 
-ALLOWED_HOSTS = []
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    if DEBUG or IS_TESTING:
+        SECRET_KEY = 'django-insecure-7kbmjh&#j#r5525=%60fryv1c9@#%4p9rw_wmyq4n%uyu&%28p'
+    else:
+        raise ImproperlyConfigured('SECRET_KEY is missing from environment variables.')
+
+# ALLOWED_HOSTS Configuration with Railway Support
+ALLOWED_HOSTS_ENV = os.environ.get('ALLOWED_HOSTS', '')
+if ALLOWED_HOSTS_ENV:
+    ALLOWED_HOSTS = [h.strip() for h in ALLOWED_HOSTS_ENV.split(',') if h.strip()]
+else:
+    if DEBUG or IS_TESTING:
+        ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0']
+    else:
+        host_candidates = []
+        
+        # Railway specific domains
+        for var_name in ('RAILWAY_PUBLIC_DOMAIN', 'RAILWAY_PRIVATE_DOMAIN', 'RAILWAY_STATIC_URL'):
+            raw_val = os.environ.get(var_name, '').strip()
+            if not raw_val:
+                continue
+            host = raw_val
+            # Clean up the domain
+            if '://' in host:
+                host = host.split('://', 1)[1]
+            host = host.split('/', 1)[0]
+            host = host.split(':', 1)[0]
+            if host:
+                host_candidates.append(host)
+        
+        # Render specific domain
+        render_domain = os.environ.get('RENDER_EXTERNAL_URL', '').strip()
+        if render_domain:
+            host = render_domain
+            if '://' in host:
+                host = host.split('://', 1)[1]
+            host = host.split('/', 1)[0]
+            if host:
+                host_candidates.append(host)
+        
+        # Vercel specific domain
+        vercel_url = os.environ.get('VERCEL_URL', '').strip()
+        if vercel_url:
+            host_candidates.append(vercel_url)
+
+        if host_candidates:
+            ALLOWED_HOSTS = sorted(set(host_candidates))
+        else:
+            # Fallback for production without explicit configuration
+            ALLOWED_HOSTS = ['*']  # Warning: Use specific domains in production
+            import warnings
+            warnings.warn(
+                'ALLOWED_HOSTS is set to ["*"]. Please configure ALLOWED_HOSTS environment variable for production.',
+                RuntimeWarning
+            )
+
+# CSRF Trusted Origins Configuration
+CSRF_TRUSTED_ORIGINS = []
+
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS.extend([
+        'http://127.0.0.1',
+        'http://localhost',
+        'http://0.0.0.0',
+    ])
+else:
+    # Auto-detect Railway domains
+    railway_public = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '').strip()
+    if railway_public:
+        if not railway_public.startswith('http'):
+            railway_public = f'https://{railway_public}'
+        CSRF_TRUSTED_ORIGINS.append(railway_public)
+    
+    railway_static = os.environ.get('RAILWAY_STATIC_URL', '').strip()
+    if railway_static and railway_static not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(railway_static)
+    
+    # Auto-detect Render domain
+    render_url = os.environ.get('RENDER_EXTERNAL_URL', '').strip()
+    if render_url and render_url not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(render_url)
+    
+    # Auto-detect Vercel domain
+    vercel_url = os.environ.get('VERCEL_URL', '').strip()
+    if vercel_url:
+        vercel_url = f'https://{vercel_url}' if not vercel_url.startswith('http') else vercel_url
+        if vercel_url not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(vercel_url)
+
+# Allow adding extra origins via ENV (comma separated)
+EXTRA_CSRF_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "")
+if EXTRA_CSRF_ORIGINS:
+    for origin in EXTRA_CSRF_ORIGINS.split(","):
+        origin = origin.strip()
+        if origin and origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(origin)
+
+# Security Settings for Railway/Production
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = True  # Prevent JS access to CSRF cookie
+CSRF_USE_SESSIONS = False  # Use cookie-based token (Standard)
+
+if not DEBUG:
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True') == 'True'
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'True') == 'True'
+    SECURE_HSTS_PRELOAD = os.environ.get('SECURE_HSTS_PRELOAD', 'True') == 'True'
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = os.environ.get('SECURE_REFERRER_POLICY', 'same-origin')
+    X_FRAME_OPTIONS = os.environ.get('X_FRAME_OPTIONS', 'DENY')
+
+# Groq LLM Configuration
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_REASONING_EFFORT = os.environ.get("GROQ_REASONING_EFFORT", "medium")
+GROQ_MAX_COMPLETION_TOKENS = int(os.environ.get("GROQ_MAX_COMPLETION_TOKENS", "8192"))
+GROQ_TEMPERATURE = float(os.environ.get("GROQ_TEMPERATURE", "0.3"))
+
+REQUIRE_GROQ_API_KEY = os.environ.get("REQUIRE_GROQ_API_KEY", "False") == "True"
+if REQUIRE_GROQ_API_KEY and not GROQ_API_KEY:
+    raise ImproperlyConfigured("GROQ_API_KEY is missing from environment variables.")
 
 
 # Application definition
@@ -36,11 +160,16 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'whitenoise.runserver_nostatic',  # Add whitenoise
     'django.contrib.staticfiles',
+    'core',          # Core Auth & Security
+    'intelligence',  # Intelligence Platform
+    'intelligence_agent',  # AI Intelligence Agent
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Add whitenoise middleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -61,6 +190,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'intelligence.context_processors.global_status_context',
             ],
         },
     },
@@ -69,16 +199,20 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
+import dj_database_url
+
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+        conn_max_age=600
+    )
 }
 
+# Custom User Model
+AUTH_USER_MODEL = 'core.User'
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -89,6 +223,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8,
+        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -96,15 +233,18 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+    {
+        'NAME': 'core.validators.ComplexPasswordValidator',
+    },
 ]
 
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ar'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Riyadh'
 
 USE_I18N = True
 
@@ -115,3 +255,43 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# Use simpler storage to avoid build failures if files are missing
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+
+# Media files
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Default primary key field type
+# https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Login/Logout URLs
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'dashboard'
+LOGOUT_REDIRECT_URL = 'login'
+
+# Logging Configuration
+LOGGING_CONFIG = None  # Disable Django's default logging config
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
