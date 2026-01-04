@@ -320,7 +320,7 @@ The system uses rotating file handlers that automatically:
 
 ## Additional Resources
 
-- Django Logging Documentation: https://docs.djangoproject.com/en/5.0/topics/logging/
+- Django Logging Documentation: https://docs.djangoproject.com/en/6.0/topics/logging/
 - Python Logging Cookbook: https://docs.python.org/3/howto/logging-cookbook.html
 - IIMS Project README: [README.md](README.md)
 

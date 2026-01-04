@@ -121,9 +121,9 @@ def _check_db_ready(retries: int = DB_READINESS_MAX_RETRIES, base_delay: float =
     return False
 
 
-class DBReadinessMiddleware:
+class DBReadinessMiddleware(MiddlewareMixin):
     def __init__(self, get_response):
-        self.get_response = get_response
+        super().__init__(get_response)
         self.logger = logging.getLogger('iims.db')
 
     def __call__(self, request):

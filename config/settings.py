@@ -237,7 +237,7 @@ LOGGING = {
         },
         'django.db.backends': {
             'handlers': ['db_file'],
-            'level': 'WARNING' if not DEBUG else 'DEBUG',
+            'level': DB_LOG_LEVEL,
             'propagate': False,
         },
         # IIMS application loggers
