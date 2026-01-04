@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 import os
 import sys
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,15 +23,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-from django.core.exceptions import ImproperlyConfigured
-
 IS_TESTING = 'test' in sys.argv
 DEBUG = os.environ.get('DEBUG', 'True' if IS_TESTING else 'False') == 'True'
 
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
     if DEBUG or IS_TESTING:
-        SECRET_KEY = 'django-insecure-7kbmjh&#j#r5525=%60fryv1c9@#%4p9rw_wmyq4n%uyu&%28p'
+        SECRET_KEY = 'django-insecure-7kbmjh-r5525-fryv1c9-4p9rw_wmyq4n-uyu-28p'
     else:
         raise ImproperlyConfigured(
             'SECRET_KEY is missing from environment variables. '
@@ -79,12 +79,11 @@ else:
         if host_candidates:
             ALLOWED_HOSTS = sorted(set(host_candidates))
         else:
-            # Fallback for production without explicit configuration
-            ALLOWED_HOSTS = ['*']  # Warning: Use specific domains in production
-            import warnings
-            warnings.warn(
-                'ALLOWED_HOSTS is set to ["*"]. Please configure ALLOWED_HOSTS environment variable for production.',
-                RuntimeWarning
+            # Production requires explicit ALLOWED_HOSTS configuration
+            raise ImproperlyConfigured(
+                'ALLOWED_HOSTS must be configured for production. '
+                'Set ALLOWED_HOSTS environment variable with comma-separated domains, '
+                'or configure platform-specific variables (RAILWAY_PUBLIC_DOMAIN, RENDER_EXTERNAL_URL, or VERCEL_URL).'
             )
 
 # CSRF Trusted Origins Configuration
@@ -217,8 +216,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
-import dj_database_url
-
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
@@ -273,13 +270,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Use simpler storage to avoid build failures if files are missing
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 # Media files
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
