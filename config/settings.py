@@ -31,7 +31,11 @@ if not SECRET_KEY:
     if DEBUG or IS_TESTING:
         SECRET_KEY = 'django-insecure-7kbmjh&#j#r5525=%60fryv1c9@#%4p9rw_wmyq4n%uyu&%28p'
     else:
-        raise ImproperlyConfigured('SECRET_KEY is missing from environment variables.')
+        raise ImproperlyConfigured(
+            'SECRET_KEY is missing from environment variables. '
+            'Set SECRET_KEY in your environment or .env file. '
+            'Generate a secure key with: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"'
+        )
 
 # ALLOWED_HOSTS Configuration with Railway Support
 ALLOWED_HOSTS_ENV = os.environ.get('ALLOWED_HOSTS', '')
@@ -144,8 +148,22 @@ if not DEBUG:
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_REASONING_EFFORT = os.environ.get("GROQ_REASONING_EFFORT", "medium")
-GROQ_MAX_COMPLETION_TOKENS = int(os.environ.get("GROQ_MAX_COMPLETION_TOKENS", "8192"))
-GROQ_TEMPERATURE = float(os.environ.get("GROQ_TEMPERATURE", "0.3"))
+
+# Validate and set GROQ_MAX_COMPLETION_TOKENS
+try:
+    GROQ_MAX_COMPLETION_TOKENS = int(os.environ.get("GROQ_MAX_COMPLETION_TOKENS", "8192"))
+    if GROQ_MAX_COMPLETION_TOKENS <= 0:
+        raise ValueError("GROQ_MAX_COMPLETION_TOKENS must be positive")
+except (ValueError, TypeError) as e:
+    raise ImproperlyConfigured(f"Invalid GROQ_MAX_COMPLETION_TOKENS: {e}")
+
+# Validate and set GROQ_TEMPERATURE
+try:
+    GROQ_TEMPERATURE = float(os.environ.get("GROQ_TEMPERATURE", "0.3"))
+    if not (0.0 <= GROQ_TEMPERATURE <= 2.0):
+        raise ValueError("GROQ_TEMPERATURE must be between 0.0 and 2.0")
+except (ValueError, TypeError) as e:
+    raise ImproperlyConfigured(f"Invalid GROQ_TEMPERATURE: {e}")
 
 REQUIRE_GROQ_API_KEY = os.environ.get("REQUIRE_GROQ_API_KEY", "False") == "True"
 if REQUIRE_GROQ_API_KEY and not GROQ_API_KEY:
