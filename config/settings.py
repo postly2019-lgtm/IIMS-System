@@ -62,12 +62,17 @@ if not DEBUG:
         ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
     
     # Auto-detect from platform-specific environment variables
-    if os.environ.get('RAILWAY_PUBLIC_DOMAIN'):
-        ALLOWED_HOSTS.append(os.environ.get('RAILWAY_PUBLIC_DOMAIN'))
-    if os.environ.get('RENDER_EXTERNAL_HOSTNAME'):
-        ALLOWED_HOSTS.append(os.environ.get('RENDER_EXTERNAL_HOSTNAME'))
-    if os.environ.get('VERCEL_URL'):
-        ALLOWED_HOSTS.append(os.environ.get('VERCEL_URL'))
+    railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
+    if railway_domain:
+        ALLOWED_HOSTS.append(railway_domain)
+    
+    render_hostname = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+    if render_hostname:
+        ALLOWED_HOSTS.append(render_hostname)
+    
+    vercel_url = os.environ.get('VERCEL_URL')
+    if vercel_url:
+        ALLOWED_HOSTS.append(vercel_url)
     
     # Remove duplicates while preserving order
     ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))

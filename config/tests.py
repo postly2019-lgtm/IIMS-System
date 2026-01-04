@@ -8,6 +8,7 @@ and configuration for both development and production environments.
 import os
 import subprocess
 import sys
+import json
 from pathlib import Path
 from unittest import TestCase
 
@@ -20,10 +21,17 @@ class SettingsConfigurationTests(TestCase):
         Helper to test settings with specific environment variables.
         Runs a subprocess to avoid polluting current environment.
         """
+        # Use JSON to safely pass environment variables to avoid injection
         test_script = """
 import os
 import sys
-{env_setup}
+import json
+
+# Load environment variables from JSON
+env_data = json.loads({env_json})
+for key, value in env_data.items():
+    os.environ[key] = value
+
 try:
     from config import settings
     print("SUCCESS")
@@ -32,10 +40,10 @@ except Exception as e:
     print("ERROR:", str(e))
     sys.exit(1)
 """
-        env_setup = '\n'.join([f"os.environ['{k}'] = '{v}'" for k, v in env_vars.items()])
-        checks = '\n    '.join([f"print('{key}:', {value})" for key, value in expected_checks.items()])
+        env_json = json.dumps(json.dumps(env_vars))  # Double encode for safe embedding
+        checks = '\n    '.join([f"print({json.dumps(key + ':')}, {value})" for key, value in expected_checks.items()])
         
-        full_script = test_script.format(env_setup=env_setup, checks=checks)
+        full_script = test_script.format(env_json=env_json, checks=checks)
         
         result = subprocess.run(
             [sys.executable, '-c', full_script],
