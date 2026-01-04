@@ -18,6 +18,22 @@ import dj_database_url
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Detect if we're in testing mode
+IS_TESTING = 'test' in os.sys.argv or os.environ.get('DJANGO_TESTING', '').lower() == 'true'
+
+
+# Helper function to detect platform-specific domains
+def get_platform_domains():
+    """Auto-detect domains from Railway, Render, Vercel environments"""
+    domains = []
+    if railway_domain := os.getenv('RAILWAY_PUBLIC_DOMAIN'):
+        domains.append(railway_domain)
+    if render_domain := os.getenv('RENDER_EXTERNAL_URL'):
+        domains.append(render_domain.replace('https://', '').replace('http://', ''))
+    if vercel_domain := os.getenv('VERCEL_URL'):
+        domains.append(vercel_domain)
+    return domains
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
@@ -32,13 +48,7 @@ SECRET_KEY = config(
 DEBUG = config('DEBUG', default=True, cast=bool)
 
 # Auto-detect production hosts from Railway, Render, Vercel
-detected_hosts = []
-if railway_domain := os.getenv('RAILWAY_PUBLIC_DOMAIN'):
-    detected_hosts.append(railway_domain)
-if render_domain := os.getenv('RENDER_EXTERNAL_URL'):
-    detected_hosts.append(render_domain.replace('https://', '').replace('http://', ''))
-if vercel_domain := os.getenv('VERCEL_URL'):
-    detected_hosts.append(vercel_domain)
+detected_hosts = get_platform_domains()
 
 # Combine detected hosts with user-provided ALLOWED_HOSTS
 default_hosts = '127.0.0.1,localhost,0.0.0.0'
@@ -49,13 +59,7 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default=default_hosts, cast=Csv())
 
 
 # CSRF Trusted Origins (for production deployments)
-csrf_origins = []
-if railway_domain := os.getenv('RAILWAY_PUBLIC_DOMAIN'):
-    csrf_origins.append(f'https://{railway_domain}')
-if render_domain := os.getenv('RENDER_EXTERNAL_URL'):
-    csrf_origins.append(render_domain)
-if vercel_domain := os.getenv('VERCEL_URL'):
-    csrf_origins.append(f'https://{vercel_domain}')
+csrf_origins = [f'https://{domain}' for domain in detected_hosts]
 
 CSRF_TRUSTED_ORIGINS = config(
     'CSRF_TRUSTED_ORIGINS',
@@ -179,8 +183,7 @@ STATICFILES_DIRS = []
 
 # Use WhiteNoise for static file serving in production
 # For tests, use default storage to avoid manifest issues
-import sys
-if 'test' in sys.argv:
+if IS_TESTING:
     STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 else:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
