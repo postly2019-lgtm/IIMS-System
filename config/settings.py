@@ -36,26 +36,27 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost,0.0.0.0', cast=Csv())
 
 # Auto-detect Railway/Render/Vercel domains
-if railway_domain := os.getenv('RAILWAY_PUBLIC_DOMAIN'):
+railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN')
+if railway_domain and railway_domain not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(railway_domain)
-if render_url := os.getenv('RENDER_EXTERNAL_URL'):
-    ALLOWED_HOSTS.append(render_url.replace('https://', '').replace('http://', ''))
-if vercel_url := os.getenv('VERCEL_URL'):
+
+render_url = os.getenv('RENDER_EXTERNAL_URL')
+if render_url:
+    render_host = render_url.replace('https://', '').replace('http://', '')
+    if render_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(render_host)
+
+vercel_url = os.getenv('VERCEL_URL')
+if vercel_url and vercel_url not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(vercel_url)
-
-# If no specific hosts configured and not in DEBUG mode, allow all
-# (not recommended for production, but prevents lockout)
-if not DEBUG and (ALLOWED_HOSTS == ['127.0.0.1', 'localhost', '0.0.0.0'] or not ALLOWED_HOSTS):
-    ALLOWED_HOSTS = ['*']
-
 
 # CSRF Trusted Origins (for production deployments)
 CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
-if railway_domain := os.getenv('RAILWAY_PUBLIC_DOMAIN'):
+if railway_domain and f'https://{railway_domain}' not in CSRF_TRUSTED_ORIGINS:
     CSRF_TRUSTED_ORIGINS.append(f'https://{railway_domain}')
-if render_url := os.getenv('RENDER_EXTERNAL_URL'):
+if render_url and render_url not in CSRF_TRUSTED_ORIGINS:
     CSRF_TRUSTED_ORIGINS.append(render_url)
-if vercel_url := os.getenv('VERCEL_URL'):
+if vercel_url and f'https://{vercel_url}' not in CSRF_TRUSTED_ORIGINS:
     CSRF_TRUSTED_ORIGINS.append(f'https://{vercel_url}')
 
 # Application definition
