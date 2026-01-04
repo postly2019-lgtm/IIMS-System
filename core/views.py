@@ -9,6 +9,19 @@ from django.contrib import messages
 from .models import UserActionLog
 from .forms import UserForm
 import json
+import logging
+
+# Get logger for this module
+logger = logging.getLogger('core')
+
+
+def _log_with_request(request, level, message):
+    """Helper to log with request ID context"""
+    log_record = logger.makeRecord(
+        logger.name, level, '', 0, message, (), None
+    )
+    log_record.request_id = getattr(request, 'request_id', 'no-request-id')
+    logger.handle(log_record)
 
 
 class SecurityLoginView(LoginView):
@@ -34,6 +47,11 @@ class SecurityLoginView(LoginView):
         user = self.request.user
         ip = self.get_client_ip()
         
+        _log_with_request(
+            self.request, logging.INFO,
+            f"User {user.username} successfully logged in from IP {ip}"
+        )
+        
         UserActionLog.objects.create(
             user=user,
             action=UserActionLog.ActionType.LOGIN,
@@ -48,6 +66,11 @@ class SecurityLoginView(LoginView):
         username = form.data.get('username')
         User = get_user_model()
         ip = self.get_client_ip()
+        
+        _log_with_request(
+            self.request, logging.WARNING,
+            f"Failed login attempt for username '{username}' from IP {ip}"
+        )
         
         try:
             if username:
@@ -85,6 +108,10 @@ def user_list_view(request):
     users = User.objects.all().order_by('-date_joined')
     
     if query:
+        _log_with_request(
+            request, logging.INFO,
+            f"User list search query: '{query}' by staff user {request.user.username}"
+        )
         users = users.filter(
             Q(username__icontains=query) |
             Q(first_name__icontains=query) |
@@ -105,6 +132,12 @@ def user_create_view(request):
         form = UserForm(request.POST, request.FILES)
         if form.is_valid():
             user = form.save()
+            
+            _log_with_request(
+                request, logging.INFO,
+                f"Staff user {request.user.username} created new user: {user.username} ({user.job_number})"
+            )
+            
             # Log action
             UserActionLog.objects.create(
                 user=request.user,
@@ -150,6 +183,10 @@ def qr_login_view(request):
             
             username = parts.get('USER')
             if not username:
+                _log_with_request(
+                    request, logging.WARNING,
+                    f"QR login attempt with invalid format from IP {request.META.get('REMOTE_ADDR')}"
+                )
                 return JsonResponse({'success': False, 'message': 'تنسيق QR غير صالح'})
 
             User = get_user_model()
@@ -159,6 +196,11 @@ def qr_login_view(request):
                 # Direct login via QR (Authentication Bypass for Demo/Physical Security Context)
                 # Ensure the backend actually specifies the backend to avoid errors
                 login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+                
+                _log_with_request(
+                    request, logging.INFO,
+                    f"User {username} logged in via QR code from IP {request.META.get('REMOTE_ADDR')}"
+                )
                 
                 # Log the action
                 UserActionLog.objects.create(
@@ -171,8 +213,16 @@ def qr_login_view(request):
                 
                 return JsonResponse({'success': True, 'redirect_url': '/intel/dashboard/'})
             except User.DoesNotExist:
+                _log_with_request(
+                    request, logging.WARNING,
+                    f"QR login attempt for non-existent user: {username}"
+                )
                 return JsonResponse({'success': False, 'message': 'المستخدم غير موجود'})
         except Exception as e:
+            _log_with_request(
+                request, logging.ERROR,
+                f"QR login exception: {str(e)}"
+            )
             return JsonResponse({'success': False, 'message': str(e)})
             
     return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=405)

@@ -11,7 +11,16 @@ from intelligence_agent.services import GroqClient
 from django.contrib import messages
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('intelligence')
+
+
+def _log_with_request(request, level, message):
+    """Helper to log with request ID context"""
+    log_record = logger.makeRecord(
+        logger.name, level, '', 0, message, (), None
+    )
+    log_record.request_id = getattr(request, 'request_id', 'no-request-id')
+    logger.handle(log_record)
 
 @login_required
 @require_POST
@@ -21,8 +30,17 @@ def translate_report_api(request, report_id):
     """
     report = get_object_or_404(IntelligenceReport, pk=report_id)
 
+    _log_with_request(
+        request, logging.INFO,
+        f"Translation requested for report {report_id} by user {request.user.username}"
+    )
+
     # Return cached translation if available
     if report.translated_title and report.translated_content:
+        _log_with_request(
+            request, logging.INFO,
+            f"Returning cached translation for report {report_id}"
+        )
         return JsonResponse({
             'status': 'success',
             'title': report.translated_title,
@@ -32,6 +50,10 @@ def translate_report_api(request, report_id):
     # Perform Translation via Groq
     client = GroqClient()
     if not client.client:
+        _log_with_request(
+            request, logging.ERROR,
+            f"AI service unavailable for translation of report {report_id}"
+        )
         return JsonResponse({'status': 'error', 'message': 'AI Service Unavailable (No API Key)'}, status=503)
 
     try:
@@ -66,16 +88,28 @@ def translate_report_api(request, report_id):
             report.translated_content = ar_content
             report.save()
             
+            _log_with_request(
+                request, logging.INFO,
+                f"Successfully translated report {report_id}"
+            )
+            
             return JsonResponse({
                 'status': 'success',
                 'title': ar_title,
                 'content': ar_content
             })
         
+        _log_with_request(
+            request, logging.ERROR,
+            f"Translation failed for report {report_id}: Invalid output"
+        )
         return JsonResponse({'status': 'error', 'message': 'Translation failed to generate valid output'}, status=500)
 
     except Exception as e:
-        logger.error(f"Translation failed: {e}")
+        _log_with_request(
+            request, logging.ERROR,
+            f"Translation exception for report {report_id}: {str(e)}"
+        )
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 @login_required
@@ -274,6 +308,11 @@ def analyze_favorites(request):
         data = json.loads(request.body)
         report_ids = data.get('report_ids', [])
         
+        _log_with_request(
+            request, logging.INFO,
+            f"User {request.user.username} requested analysis of {len(report_ids)} reports"
+        )
+        
         if not report_ids:
             return JsonResponse({'status': 'error', 'message': 'No reports selected'})
             
@@ -290,9 +329,17 @@ def analyze_favorites(request):
         client = GroqClient()
         analysis = client.analyze_reports(reports_data)
         
+        _log_with_request(
+            request, logging.INFO,
+            f"Successfully analyzed {len(report_ids)} reports for user {request.user.username}"
+        )
+        
         return JsonResponse({'status': 'success', 'analysis': analysis})
     except Exception as e:
-        logger.error(f"Analysis error: {e}")
+        _log_with_request(
+            request, logging.ERROR,
+            f"Analysis error for user {request.user.username}: {str(e)}"
+        )
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @login_required
