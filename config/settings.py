@@ -221,7 +221,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+        default=f'sqlite:///{str(BASE_DIR / "db.sqlite3")}',
         conn_max_age=600
     )
 }
@@ -289,7 +289,9 @@ LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 
 # Logging Configuration
-LOGGING_CONFIG = None  # Disable Django's default logging config
+# Disable Django's default logging config to use custom configuration
+# This provides better control over log levels and formats for production/development
+LOGGING_CONFIG = None
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
