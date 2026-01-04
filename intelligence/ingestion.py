@@ -1,5 +1,6 @@
 import feedparser
 import sys
+import logging
 from django.utils import timezone
 from .models import Source, IntelligenceReport
 from .analysis import ContentAnalyzer
@@ -9,6 +10,10 @@ from time import mktime
 from bs4 import BeautifulSoup
 from .utils.translation_engine import translator
 from intelligence_agent.services import GroqClient
+
+# Get logger for this module
+logger = logging.getLogger('intelligence.ingestion')
+
 
 class IngestionEngine:
     def __init__(self):
@@ -65,20 +70,26 @@ class IngestionEngine:
         sources = Source.objects.filter(is_active=True, source_type=Source.SourceType.RSS)
         results = {'success': 0, 'failed': 0}
         
+        logger.info(f"Starting RSS ingestion for {sources.count()} active sources")
+        
         # Refresh cache once per batch run
         self._ignored_keywords_cache = None 
         
         for source in sources:
             try:
+                logger.info(f"Processing RSS source: {source.name}")
                 self.process_rss_source(source)
                 results['success'] += 1
             except Exception as e:
-                print(f"Error fetching {source.name}: {e}")
+                logger.error(f"Error fetching {source.name}: {str(e)}")
                 results['failed'] += 1
+        
+        logger.info(f"RSS ingestion completed. Success: {results['success']}, Failed: {results['failed']}")
         return results
 
     def process_rss_source(self, source):
         if not source.url:
+            logger.warning(f"Source {source.name} has no URL, skipping")
             return
 
         ignored_keywords = self._get_ignored_keywords()
@@ -86,19 +97,20 @@ class IngestionEngine:
         # --- Filter: Strictly Ignore Non-Intelligence Domains ---
         source_identity = (source.name + " " + source.url).lower()
         if any(keyword in source_identity for keyword in ignored_keywords):
-            # Log skipped source if needed, but for now just return
+            logger.info(f"Skipping source {source.name} due to ignored keywords")
             return
 
         # --- Content Validation (Sovereign Guard) ---
         # 1. Check for valid URL scheme
         if not source.url.startswith(('http://', 'https://')):
-             print(f"Skipping invalid URL scheme: {source.url}")
+             logger.warning(f"Skipping invalid URL scheme: {source.url}")
              return
 
         try:
             feed = feedparser.parse(source.url)
+            logger.info(f"Parsed feed from {source.name}, found {len(feed.entries)} entries")
         except Exception as e:
-            print(f"Feed parsing error for {source.name}: {e}")
+            logger.error(f"Feed parsing error for {source.name}: {str(e)}")
             return
         
         for entry in feed.entries:
