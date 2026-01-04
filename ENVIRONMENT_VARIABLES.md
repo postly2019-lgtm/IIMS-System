@@ -306,7 +306,7 @@ SECURE_HSTS_PRELOAD=True
 
 **مثال:**
 ```env
-GROQ_API_KEY=gsk_abc123xyz789...
+GROQ_API_KEY=YOUR_GROQ_API_KEY
 ```
 
 **ملاحظة:** إذا لم يتم تعيينه، ستعمل ميزات AI في وضع محدود.
@@ -540,7 +540,7 @@ ADMIN_PASSWORD=SecurePassword123!
 ADMIN_JOB_NUMBER=ADMIN-001
 
 # Groq AI (required for AI features)
-GROQ_API_KEY=gsk_your_actual_groq_api_key_here
+GROQ_API_KEY=YOUR_GROQ_API_KEY
 GROQ_MODEL=openai/gpt-oss-120b
 GROQ_REASONING_EFFORT=medium
 GROQ_MAX_COMPLETION_TOKENS=8192
@@ -585,7 +585,7 @@ DEBUG=True
 ADMIN_PASSWORD=admin123
 
 # Groq AI (optional)
-GROQ_API_KEY=gsk_your_key_here
+GROQ_API_KEY=YOUR_GROQ_API_KEY
 ```
 
 ---

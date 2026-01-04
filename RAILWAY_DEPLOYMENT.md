@@ -193,7 +193,7 @@ Value: Administrator
 
 ```
 Name: GROQ_API_KEY
-Value: gsk_your_groq_api_key_here
+Value: YOUR_GROQ_API_KEY
 
 Name: GROQ_MODEL
 Value: llama-3.3-70b-versatile

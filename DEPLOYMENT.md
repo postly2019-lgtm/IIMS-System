@@ -94,7 +94,7 @@ ADMIN_PASSWORD=your-secure-password-here
 ADMIN_JOB_NUMBER=ADMIN-001
 
 # Optional: Groq AI
-GROQ_API_KEY=gsk_your_groq_api_key_here
+GROQ_API_KEY=YOUR_GROQ_API_KEY
 GROQ_MODEL=llama-3.3-70b-versatile
 
 # Optional: Custom Domain
@@ -392,7 +392,7 @@ python manage.py migrate
 |---------|--------|------|
 | `DATABASE_URL` | رابط قاعدة البيانات | `postgresql://...` |
 | `ADMIN_PASSWORD` | كلمة مرور المدير | `SecurePass123!` |
-| `GROQ_API_KEY` | مفتاح Groq AI | `gsk_xxx...` |
+| `GROQ_API_KEY` | مفتاح Groq AI | `YOUR_GROQ_API_KEY` |
 
 ### المتغيرات الاختيارية
 

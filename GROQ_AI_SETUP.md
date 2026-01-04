@@ -8,7 +8,7 @@
 
 ### النموذج المستخدم: Ollama 3.0
 
-**اسم النموذج في Groq:** `openai/gpt-oss-120b`
+**اسم النموذج في Groq:** `Ollama 3.0`
 
 **المواصفات:**
 - **الحجم:** 120 مليار معامل
@@ -24,7 +24,7 @@
 
 ```env
 ADMIN_USERNAME=ai-iimms
-GROQ_API_KEY=gsk_your_actual_groq_api_key_here
+GROQ_API_KEY=YOUR_GROQ_API_KEY
 ```
 
 **⚠️ تحذير أمني:**
@@ -42,7 +42,7 @@ GROQ_API_KEY=gsk_your_actual_groq_api_key_here
 
 ```env
 # Groq AI Configuration
-GROQ_API_KEY=gsk_your_actual_groq_api_key_here
+GROQ_API_KEY=YOUR_GROQ_API_KEY
 GROQ_MODEL=openai/gpt-oss-120b
 GROQ_REASONING_EFFORT=medium
 GROQ_MAX_COMPLETION_TOKENS=8192
@@ -53,7 +53,7 @@ GROQ_TEMPERATURE=1
 
 ```env
 # Groq AI Configuration
-GROQ_API_KEY=gsk_your_actual_groq_api_key_here
+GROQ_API_KEY=YOUR_GROQ_API_KEY
 GROQ_MODEL=openai/gpt-oss-120b
 GROQ_REASONING_EFFORT=low
 GROQ_MAX_COMPLETION_TOKENS=4096
@@ -328,7 +328,7 @@ GROQ_API_KEY = "gsk_..."  # لا تفعل هذا!
 
 ```env
 # في Railway Dashboard → Variables
-GROQ_API_KEY=gsk_your_actual_groq_api_key_here
+GROQ_API_KEY=YOUR_GROQ_API_KEY
 GROQ_MODEL=openai/gpt-oss-120b
 GROQ_TEMPERATURE=1
 GROQ_REASONING_EFFORT=medium
@@ -339,7 +339,7 @@ GROQ_MAX_COMPLETION_TOKENS=8192
 
 ```bash
 # في ملف .env (لا تضعه في Git!)
-GROQ_API_KEY=gsk_your_actual_groq_api_key_here
+GROQ_API_KEY=YOUR_GROQ_API_KEY
 GROQ_MODEL=openai/gpt-oss-120b
 ```
 
